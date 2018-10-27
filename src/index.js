@@ -14,8 +14,8 @@ export function useState(initial) {
     })
   };
   if (isMounting) {
-    state[id] = initial;
-    return [initial, updater];
+    state[id] = typeof initial === 'function' ? initial() : initial;
+    return [state[id], updater];
   } else {
     return [state[id], updater];
   }
