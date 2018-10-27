@@ -1,6 +1,6 @@
 import React, { createContext } from 'react';
 import { mount } from 'enzyme';
-import withHooks, { useState, useEffect, useContext, useReducer } from '../src';
+import withHooks, { useState, useEffect, useContext, useReducer, useMemo } from '../src';
 
 test('useState', () => {
   const Counter = withHooks(() => {
@@ -153,4 +153,18 @@ test('useReducer', () => {
   wrapper.find('button').at(2).simulate('click');
   wrapper.find('button').at(0).simulate('click');
   expect(wrapper.find('.count').text()).toBe('5');
+});
+
+test('useMemo', () => {
+  let result;
+  const Sum = withHooks(({ a, b, c }) => {
+    result = useMemo(() => a + b + c, [a, b]);
+    return <div>{result}</div>
+  });
+  const wrapper = mount(<Sum a={1} b={1} c={1}/>);
+  expect(result).toBe(3);
+  wrapper.setProps({ c: 2 });
+  expect(result).toBe(3);
+  wrapper.setProps({ a: 2 });
+  expect(result).toBe(5);
 });

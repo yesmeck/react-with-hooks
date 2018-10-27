@@ -40,7 +40,7 @@ export function useEffect(rawEffect, deps) {
     };
     injectedEffect.current = rawEffect;
 
-    currentInstance._effectStore[id] = {
+    currentInstance._hookStore[id] = {
       effect: injectedEffect,
       cleanup: injectedCleanup,
       deps
@@ -51,7 +51,7 @@ export function useEffect(rawEffect, deps) {
     injectEffect('componentDidUpdate', injectedEffect);
     injectEffect('componentWillUpdate', injectedCleanup);
   } else {
-    const { effect, deps: prevDeps = [] } = currentInstance._effectStore[id];
+    const { effect, deps: prevDeps = [] } = currentInstance._hookStore[id];
     if (!deps || deps.some((d, i) => d !== prevDeps[i])) {
       effect.current = rawEffect;
     } else {
@@ -90,12 +90,38 @@ function injectEffect(key, fn) {
   currentInstance[key] = fn;
 }
 
+export function useCallback(fn, deps) {
+  return useMemo(() => fn, deps)
+}
+
+export function useMemo(fn, deps) {
+  const id = ++callIndex;
+
+  if (isMounting) {
+    const result = fn();
+    currentInstance._hookStore[id] = {
+      deps,
+      result,
+    };
+    return result;
+  } else {
+    const { result, deps: prevDeps = [] } = currentInstance._hookStore[id];
+    if (!deps || deps.some((d, i) => d !== prevDeps[i])) {
+      const result = fn();
+      currentInstance._hookStore[id] = { deps, result };
+      return result;
+    } else {
+      return result;
+    }
+  }
+}
+
 export default function withHooks(render) {
   class WithHooks extends React.Component {
     constructor(props) {
       super();
       this.state = {};
-      this._effectStore = [];
+      this._hookStore = [];
       currentInstance = this;
       isMounting = true;
       this.ret = render(props);

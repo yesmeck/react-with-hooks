@@ -38,8 +38,8 @@ const Counter = withHooks(() => {
   - [useContext](https://reactjs.org/docs/hooks-reference.html#usecontext)
 - Additional Hooks
   - [useReducer](https://reactjs.org/docs/hooks-reference.html#usereducer)
-  - useCallback (WIP)
-  - useMemo (WIP)
+  - [useCallback](https://reactjs.org/docs/hooks-reference.html#usecallback)
+  - [useMemo](https://reactjs.org/docs/hooks-reference.html#usememo)
   - useRef (WIP)
   - useImperativeMethods (WIP)
   - useMutationEffect (WIP)
