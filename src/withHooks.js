@@ -116,6 +116,20 @@ export function useMemo(fn, deps) {
   }
 }
 
+export function useRef(initial) {
+  const id = ++callIndex;
+
+  if (isMounting) {
+    const ref = {
+      current: initial,
+    };
+    currentInstance._hookStore[id] = ref;
+    return ref;
+  } else {
+    return currentInstance._hookStore[id];
+  }
+}
+
 export default function withHooks(render) {
   class WithHooks extends React.Component {
     constructor(props) {

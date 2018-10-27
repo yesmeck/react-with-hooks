@@ -1,6 +1,6 @@
 import React, { createContext } from 'react';
 import { mount } from 'enzyme';
-import withHooks, { useState, useEffect, useContext, useReducer, useMemo } from '../src';
+import withHooks, { useState, useEffect, useContext, useReducer, useMemo, useRef } from '../src';
 
 test('useState', () => {
   const Counter = withHooks(() => {
@@ -167,4 +167,22 @@ test('useMemo', () => {
   expect(result).toBe(3);
   wrapper.setProps({ a: 2 });
   expect(result).toBe(5);
+});
+
+test('useRef', () => {
+  const Dummy = withHooks(() => {
+    const ref = useRef(0);
+
+    useEffect(() => {
+      ref.current = 1;
+    }, [])
+
+    return (
+      <div>{ref.current}</div>
+    );
+  });
+  const wrapper = mount(<Dummy />);
+  expect(wrapper.text()).toBe('0');
+  wrapper.setState({});
+  expect(wrapper.text()).toBe('1');
 });
