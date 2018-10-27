@@ -1,6 +1,6 @@
 {
   "name": "react-with-hooks",
-  "version": "0.0.1-alpha.2",
+  "version": "0.0.1-alpha.3",
   "description": "",
   "main": "lib/index.js",
   "files": [
@@ -10,7 +10,8 @@
   "author": "",
   "license": "MIT",
   "scripts": {
-    "build": "babel src -d lib"
+    "build": "babel src -d lib",
+    "prepack": "npm run build"
   },
   "devDependencies": {
     "@babel/cli": "^7.1.2",
