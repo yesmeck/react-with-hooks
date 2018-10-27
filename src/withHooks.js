@@ -135,6 +135,14 @@ export function useImperativeMethods(ref, createInstance, deps) {
   ref.current = instance;
 }
 
+export function useMutationEffect(...args) {
+  return useEffect(...args);
+}
+
+export function useLayoutEffect(...args) {
+  return useEffect(...args);
+}
+
 export default function withHooks(render) {
   class WithHooks extends React.Component {
     constructor(props) {
