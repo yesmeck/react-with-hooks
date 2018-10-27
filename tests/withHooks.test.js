@@ -37,7 +37,7 @@ test('useEffect', () => {
   });
   const wrapper = mount(<Counter />);
   expect(count).toBe(1);
-  wrapper.setState({});
+  wrapper.setProps({});
   expect(count).toBe(2);
 });
 
@@ -54,7 +54,7 @@ test('useEffect clean up', () => {
   });
   const wrapper = mount(<Counter />);
   expect(count).toBe(1);
-  wrapper.setState({});
+  wrapper.setProps({});
   expect(count).toBe(6);
   wrapper.unmount();
   expect(count).toBe(5);
@@ -73,7 +73,7 @@ test('useEffect deps', () => {
   });
   const wrapper = mount(<Counter step={1} />);
   expect(count).toBe(1);
-  wrapper.setState({});
+  wrapper.setProps({});
   expect(count).toBe(1);
   wrapper.setProps({ step: 2 });
   expect(count).toBe(3);
@@ -89,7 +89,7 @@ test('useEffect empty deps', () => {
   });
   const wrapper = mount(<Counter />);
   expect(count).toBe(1);
-  wrapper.setState({});
+  wrapper.setProps({});
   expect(count).toBe(1);
 });
 
@@ -183,11 +183,11 @@ test('useRef', () => {
   });
   const wrapper = mount(<Dummy />);
   expect(wrapper.text()).toBe('0');
-  wrapper.setState({});
+  wrapper.setProps({});
   expect(wrapper.text()).toBe('1');
 });
 
-test.skip('useImperativeMethods', () => {
+test('useImperativeMethods', () => {
   const focus = jest.fn();
   const FancyInput = forwardRef(withHooks((props, ref) => {
     useImperativeMethods(ref, () => ({
