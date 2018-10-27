@@ -60,6 +60,19 @@ export function useEffect(rawEffect, deps) {
   }
 }
 
+export function useContext(Context) {
+  const id = ++callIndex;
+  if (isMounting) {
+    const originalRender = currentInstance.render.bind(currentInstance);
+    currentInstance.render = () => (
+      <Context.Consumer>
+        {originalRender}
+      </Context.Consumer>
+    );
+  }
+  return Context._currentValue;
+}
+
 function injectEffect(key, fn) {
   currentInstance[key] = fn;
 }

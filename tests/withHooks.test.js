@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { createContext } from 'react';
 import { mount } from 'enzyme';
-import withHooks, { useState, useEffect } from '../src';
+import withHooks, { useState, useEffect, useContext } from '../src';
 
 test('useState', () => {
   const Counter = withHooks(() => {
@@ -88,4 +88,30 @@ test('useEffect empty deps', () => {
   expect(count).toBe(1);
   wrapper.setState({});
   expect(count).toBe(1);
+});
+
+test('useContext', () => {
+  const CounterContext = createContext();
+  const Counter = withHooks(() => {
+    const count = useContext(CounterContext);
+    return <div>{count}</div>;
+  });
+  class Blank extends React.PureComponent {
+    render() {
+      return this.props.children;
+    }
+  }
+  const App = (props) => {
+    return (
+      <CounterContext.Provider value={props.count}>
+        <Blank>
+          <Counter />
+        </Blank>
+      </CounterContext.Provider>
+    );
+  }
+  const wrapper = mount(<App count={0} />);
+  expect(wrapper.text()).toBe('0');
+  wrapper.setProps({ count: 1 });
+  expect(wrapper.text()).toBe('1');
 });
