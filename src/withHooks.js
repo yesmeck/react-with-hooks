@@ -168,5 +168,7 @@ export default function withHooks(render) {
     }
   }
   WithHooks.displayName = render.displayName || render.name;
-  return (props, ref) => <WithHooks {...props} _forwardedRef={ref} />;
+  const wrap = (props, ref) => <WithHooks {...props} _forwardedRef={ref} />;
+  wrap.displayName = `WithHooks(${WithHooks.displayName})`
+  return wrap;
 }
