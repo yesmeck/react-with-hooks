@@ -151,7 +151,8 @@ export default function withHooks(render) {
       this._hookStore = [];
       currentInstance = this;
       isMounting = true;
-      this.ret = render(props, props._forwardedRef);
+      const { _forwardedRef, ...rest } = props;
+      this.ret = render(rest, _forwardedRef);
     }
 
     render() {
@@ -161,7 +162,8 @@ export default function withHooks(render) {
         return this.ret;
       }
       currentInstance = this;
-      const ret = render(this.props, this.props._forwardedRef);
+      const { _forwardedRef, ...rest } = this.props;
+      const ret = render(rest, _forwardedRef);
       currentInstance = null;
       callIndex = 0;
       return ret;
