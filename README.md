@@ -30,4 +30,4 @@ const Counter = withHooks(() => {
 
 ## License
 
-MIT
+[MIT](./LICENSE)
