@@ -17,8 +17,6 @@ export function useState(initial) {
     state[id] = initial;
     return [initial, updater];
   } else {
-    console.log('id', id);
-    console.log('state', state)
     return [state[id], updater];
   }
 }
