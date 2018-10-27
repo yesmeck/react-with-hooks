@@ -1,6 +1,6 @@
-import React, { createContext } from 'react';
+import React, { createContext, forwardRef } from 'react';
 import { mount } from 'enzyme';
-import withHooks, { useState, useEffect, useContext, useReducer, useMemo, useRef } from '../src';
+import withHooks, { useState, useEffect, useContext, useReducer, useMemo, useRef, useImperativeMethods } from '../src';
 
 test('useState', () => {
   const Counter = withHooks(() => {
@@ -185,4 +185,24 @@ test('useRef', () => {
   expect(wrapper.text()).toBe('0');
   wrapper.setState({});
   expect(wrapper.text()).toBe('1');
+});
+
+test.skip('useImperativeMethods', () => {
+  const focus = jest.fn();
+  const FancyInput = forwardRef(withHooks((props, ref) => {
+    useImperativeMethods(ref, () => ({
+      focus,
+    }));
+    return <input  />;
+  }));
+
+  const App = withHooks(() => {
+    const ref = useRef()
+    useEffect(() => {
+      ref.current.focus();
+    })
+    return <FancyInput ref={ref} />
+  });
+  mount(<App />);
+  expect(focus).toBeCalledTimes(1);
 });

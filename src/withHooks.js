@@ -130,6 +130,11 @@ export function useRef(initial) {
   }
 }
 
+export function useImperativeMethods(ref, createInstance, deps) {
+  const instance = useMemo(createInstance, deps);
+  ref.current = instance;
+}
+
 export default function withHooks(render) {
   class WithHooks extends React.Component {
     constructor(props) {
@@ -138,7 +143,7 @@ export default function withHooks(render) {
       this._hookStore = [];
       currentInstance = this;
       isMounting = true;
-      this.ret = render(props);
+      this.ret = render(props, props._forwardedRef);
     }
 
     render() {
@@ -148,12 +153,12 @@ export default function withHooks(render) {
         return this.ret;
       }
       currentInstance = this;
-      const ret = render(this.props);
+      const ret = render(this.props, this.props._forwardedRef);
       currentInstance = null;
       callIndex = 0;
       return ret;
     }
   }
-  WithHooks.displayName = render.name;
+  WithHooks.displayName = render.displayName || render.name;
   return WithHooks;
 }
