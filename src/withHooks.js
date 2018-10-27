@@ -61,7 +61,6 @@ export function useEffect(rawEffect, deps) {
 }
 
 export function useContext(Context) {
-  const id = ++callIndex;
   if (isMounting) {
     const originalRender = currentInstance.render.bind(currentInstance);
     currentInstance.render = () => (
@@ -71,6 +70,20 @@ export function useContext(Context) {
     );
   }
   return Context._currentValue;
+}
+
+export function useReducer(reducer, initialState, initialAction) {
+  if (isMounting && initialAction) {
+    initialState = reducer(initialState, initialAction);
+  }
+
+  const [state, setState] = useState(initialState);
+
+  function dispatch(action) {
+    setState(reducer(state, action));
+  }
+
+  return [state, dispatch];
 }
 
 function injectEffect(key, fn) {

@@ -1,6 +1,6 @@
 import React, { createContext } from 'react';
 import { mount } from 'enzyme';
-import withHooks, { useState, useEffect, useContext } from '../src';
+import withHooks, { useState, useEffect, useContext, useReducer } from '../src';
 
 test('useState', () => {
   const Counter = withHooks(() => {
@@ -62,10 +62,13 @@ test('useEffect clean up', () => {
 
 test('useEffect deps', () => {
   let count = 0;
-  const Counter = withHooks((props) => {
-    useEffect(() => {
-      count += props.step;
-    }, [props.step]);
+  const Counter = withHooks(props => {
+    useEffect(
+      () => {
+        count += props.step;
+      },
+      [props.step],
+    );
     return <div>{count}</div>;
   });
   const wrapper = mount(<Counter step={1} />);
@@ -101,7 +104,7 @@ test('useContext', () => {
       return this.props.children;
     }
   }
-  const App = (props) => {
+  const App = props => {
     return (
       <CounterContext.Provider value={props.count}>
         <Blank>
@@ -109,9 +112,45 @@ test('useContext', () => {
         </Blank>
       </CounterContext.Provider>
     );
-  }
+  };
   const wrapper = mount(<App count={0} />);
   expect(wrapper.text()).toBe('0');
   wrapper.setProps({ count: 1 });
   expect(wrapper.text()).toBe('1');
+});
+
+test('useReducer', () => {
+  const initialState = { count: 0 };
+  const reducer = (state, action) => {
+    switch (action.type) {
+      case 'reset':
+        return { count: action.payload };
+      case 'increment':
+        return { count: state.count + 1 };
+      case 'decrement':
+        return { count: state.count - 1 };
+    }
+  };
+
+  const Counter = withHooks(({ initialCount }) => {
+    const [state, dispatch] = useReducer(reducer, initialState, { type: 'reset', payload: initialCount });
+
+    return (
+      <div>
+        <div className="count">{state.count}</div>
+        <button onClick={() => dispatch({ type: 'reset', payload: initialCount })}>Reset</button>
+        <button onClick={() => dispatch({ type: 'increment' })}>+</button>
+        <button onClick={() => dispatch({ type: 'decrement' })}>-</button>
+      </div>
+    );
+  });
+  const wrapper = mount(<Counter initialCount={5} />);
+  expect(wrapper.find('.count').text()).toBe('5');
+  wrapper.find('button').at(1).simulate('click');
+  expect(wrapper.find('.count').text()).toBe('6');
+  wrapper.find('button').at(2).simulate('click');
+  expect(wrapper.find('.count').text()).toBe('5');
+  wrapper.find('button').at(2).simulate('click');
+  wrapper.find('button').at(0).simulate('click');
+  expect(wrapper.find('.count').text()).toBe('5');
 });

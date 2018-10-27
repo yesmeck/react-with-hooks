@@ -37,7 +37,7 @@ const Counter = withHooks(() => {
   - [useEffect](https://reactjs.org/docs/hooks-reference.html#useeffect)
   - [useContext](https://reactjs.org/docs/hooks-reference.html#usecontext)
 - Additional Hooks
-  - useReducer (WIP)
+  - [useReducer](https://reactjs.org/docs/hooks-reference.html#usereducer)
   - useCallback (WIP)
   - useMemo (WIP)
   - useRef (WIP)
