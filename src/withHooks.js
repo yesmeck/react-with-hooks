@@ -35,7 +35,7 @@ export function useEffect(rawEffect, deps) {
       injectedCleanup();
       const { current } = injectedEffect;
       if (current) {
-        injectedCleanup.cleanup = current();
+        injectedCleanup.current = current();
       }
     };
     injectedEffect.current = rawEffect;
@@ -48,10 +48,8 @@ export function useEffect(rawEffect, deps) {
 
     injectEffect('componentDidMount', injectedEffect);
     injectEffect('componentWillUnmount', injectedCleanup);
-    if (!deps) {
-      injectEffect('componentDidUpdate', injectedEffect);
-      injectEffect('componentWillUpdate', injectedCleanup);
-    }
+    injectEffect('componentDidUpdate', injectedEffect);
+    injectEffect('componentWillUpdate', injectedCleanup);
   } else {
     const { effect, deps: prevDeps = [] } = currentInstance._effectStore[id];
     if (!deps || deps.some((d, i) => d !== prevDeps[i])) {
@@ -68,13 +66,13 @@ function injectEffect(key, fn) {
 
 export default function withHooks(render) {
   class WithHooks extends React.Component {
-    constructor() {
+    constructor(props) {
       super();
       this.state = {};
       this._effectStore = [];
       currentInstance = this;
       isMounting = true;
-      this.ret = render(this.props);
+      this.ret = render(props);
     }
 
     render() {
