@@ -1,0 +1,22 @@
+{
+  "name": "react-with-hooks",
+  "version": "0.0.1-alpha.0",
+  "description": "",
+  "main": "index.js",
+  "files": [
+    "lib"
+  ],
+  "keywords": [],
+  "author": "Wei Zhu <yesmeck@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "build": "babel src -d lib"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.1.2",
+    "@babel/core": "^7.1.2"
+  },
+  "dependencies": {
+    "@babel/preset-env": "^7.1.0"
+  }
+}
