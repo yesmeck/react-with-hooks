@@ -30,6 +30,21 @@ const Counter = withHooks(() => {
 
 [Live Demo](https://codesandbox.io/s/olx6zp44n6)
 
+## API Reference
+
+- Basic Hooks
+  - [useState](https://reactjs.org/docs/hooks-reference.html#usestate)
+  - [useEffect](https://reactjs.org/docs/hooks-reference.html#useeffect)
+  - [useContext](https://reactjs.org/docs/hooks-reference.html#usecontext)
+- Additional Hooks
+  - useReducer (WIP)
+  - useCallback (WIP)
+  - useMemo (WIP)
+  - useRef (WIP)
+  - useImperativeMethods (WIP)
+  - useMutationEffect (WIP)
+  - useLayoutEffect (WIP)
+
 ## License
 
 [MIT](./LICENSE)
