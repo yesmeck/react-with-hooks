@@ -31,5 +31,7 @@
     "react-dom": "^16.6.0",
     "regenerator-runtime": "^0.12.1"
   },
-  "dependencies": {}
+  "dependencies": {
+    "invariant": "^2.2.4"
+  }
 }
