@@ -1,5 +1,7 @@
 # react-with-hooks
 
+![Travis (.org)](https://img.shields.io/travis/yesmeck/react-with-hooks.svg?style=flat-square)
+
 Ponyfill for the [proposed React Hooks API](https://reactjs.org/docs/hooks-intro.html).
 
 ## Install
