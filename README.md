@@ -42,8 +42,9 @@ const Counter = withHooks(() => {
   - [useMemo](https://reactjs.org/docs/hooks-reference.html#usememo)
   - [useRef](https://reactjs.org/docs/hooks-reference.html#useref)
   - [useImperativeMethod](https://reactjs.org/docs/hooks-reference.html#useimperativemethods)
-  - [useMutationEffect](https://reactjs.org/docs/hooks-reference.html#usemutationeffect)
-  - [useLayoutEffect](https://reactjs.org/docs/hooks-reference.html#uselayouteffect)
+  - ⚠️ useMutationEffect - works same as `useEffect`
+  - ⚠️ useLayoutEffect - works same as `useEffect`
+
 
 ## License
 
