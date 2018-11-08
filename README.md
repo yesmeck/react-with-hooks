@@ -4,6 +4,8 @@
 
 Ponyfill for the [proposed React Hooks API](https://reactjs.org/docs/hooks-intro.html).
 
+Works on RN!
+
 ## Install
 
 ```bash
