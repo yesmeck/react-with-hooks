@@ -17,6 +17,7 @@
   "jest": {
     "setupTestFrameworkScriptFile": "<rootDir>tests/setup.js"
   },
+  "typings": "index.d.ts",
   "devDependencies": {
     "@babel/cli": "^7.1.2",
     "@babel/core": "^7.1.2",
