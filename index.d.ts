@@ -24,4 +24,16 @@ declare function useMemo<T>(factory: () => T, inputs: React.InputIdentityList): 
 
 declare var withHooks: WithHooks;
 
+export {
+  useContext,
+  useState,
+  useReducer,
+  useRef,
+  useMutationEffect,
+  useLayoutEffect,
+  useEffect,
+  useImperativeMethods,
+  useCallback,
+  useMemo,
+}
 export default withHooks;
