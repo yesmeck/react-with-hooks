@@ -276,10 +276,12 @@ export function useEffect(create, inputs) {
 }
 
 export function useContext(Context) {
-  if (!isReRender) {
+  const workInProgressHook = createWorkInProgressHook();
+  if (workInProgressHook.memoizedState === null) {
     const originalRender = currentInstance.render.bind(currentInstance);
     currentInstance.render = () => <Context.Consumer>{originalRender}</Context.Consumer>;
   }
+  workInProgressHook.memoizedState = true;
   return Context._currentValue;
 }
 
