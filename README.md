@@ -24,9 +24,9 @@ const Counter = withHooks(() => {
   })
   return (
     <div>
-       {count}
-       <button onClick={() => setCount(count + 1)}>+</button>
-       <button onClick={() => setCount(count - 1)}>-</button>
+      {count}
+      <button onClick={() => setCount(count + 1)}>+</button>
+      <button onClick={() => setCount(count - 1)}>-</button>
     </div>
   );
 });
