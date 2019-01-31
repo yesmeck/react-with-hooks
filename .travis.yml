@@ -1,3 +1,7 @@
 language: node_js
 node_js:
   - stable
+scripts:
+  - npm test
+  - bash <(curl -s https://codecov.io/bash)
+

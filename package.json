@@ -25,6 +25,9 @@
   "jest": {
     "setupFilesAfterEnv": [
       "<rootDir>tests/setup.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js"
     ]
   },
   "typings": "index.d.ts",
