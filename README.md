@@ -1,6 +1,7 @@
 # react-with-hooks
 
 [![Build Status](https://img.shields.io/travis/yesmeck/react-with-hooks.svg?style=flat-square)](https://travis-ci.org/yesmeck/react-with-hooks)
+![codecov](https://img.shields.io/codecov/c/github/yesmeck/react-with-hooks.svg?style=flat-square)
 
 Ponyfill for the [proposed React Hooks API](https://reactjs.org/docs/hooks-intro.html).
 
