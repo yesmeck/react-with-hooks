@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { createElement } from 'react';
 import invariant from 'invariant';
 
 const RE_RENDER_LIMIT = 25;
@@ -16,6 +16,7 @@ let currentInstance = null;
 let renderPhaseUpdates = null;
 let numberOfReRenders = 0;
 let componentUpdateQueue = null;
+let componentContext = null;
 let isRenderPhase = false;
 
 function basicStateReducer(state, action) {
@@ -27,7 +28,7 @@ function prepareToUseHooks(current) {
   firstCurrentHook = current.memoizedState ? current.memoizedState : null;
 }
 
-function finishHooks(Component, props, children, refOrContext) {
+function finishHooks(render, props, children, refOrContext) {
   while (didScheduleRenderPhaseUpdate) {
     // Updates were scheduled during the render phase. They are stored in
     // the `renderPhaseUpdates` map. Call the component again, reusing the
@@ -41,7 +42,9 @@ function finishHooks(Component, props, children, refOrContext) {
     workInProgressHook = null;
     componentUpdateQueue = null;
 
-    children = Component(props, refOrContext);
+    children = currentInstance.applyContext(() => render(props, refOrContext));
+
+    componentContext = null;
   }
   renderPhaseUpdates = null;
   numberOfReRenders = 0;
@@ -61,6 +64,7 @@ function finishHooks(Component, props, children, refOrContext) {
   firstWorkInProgressHook = null;
   workInProgressHook = null;
   componentUpdateQueue = null;
+  componentContext = null;
   isRenderPhase = false;
 
   invariant(
@@ -78,6 +82,7 @@ function resetHooks() {
   firstWorkInProgressHook = null;
   workInProgressHook = null;
   componentUpdateQueue = null;
+  componentContext = null;
 
   didScheduleRenderPhaseUpdate = false;
   renderPhaseUpdates = null;
@@ -203,6 +208,19 @@ function pushEffect(tag, create, destroy, inputs) {
   return effect;
 }
 
+function pushContext(context) {
+  const _context = {
+    Consumer: context.Consumer,
+    next: null,
+  };
+  if (componentContext === null) {
+    componentContext = _context;
+  } else {
+    componentContext.next = _context;
+  }
+  return _context;
+}
+
 function dispatchAction(instance, queue, action) {
   invariant(
     numberOfReRenders < RE_RENDER_LIMIT,
@@ -276,12 +294,7 @@ export function useEffect(create, inputs) {
 }
 
 export function useContext(Context) {
-  const workInProgressHook = createWorkInProgressHook();
-  if (workInProgressHook.memoizedState === null) {
-    const originalRender = currentInstance.render.bind(currentInstance);
-    currentInstance.render = () => <Context.Consumer>{originalRender}</Context.Consumer>;
-  }
-  workInProgressHook.memoizedState = true;
+  pushContext(Context);
   return Context._currentValue;
 }
 
@@ -463,6 +476,7 @@ export default function withHooks(render) {
     componentDidMount() {
       this.commitHookEffectList(UnmountPassive, NoEffect);
       this.commitHookEffectList(NoEffect, MountPassive);
+      this.mounted = true;
     }
 
     componentDidUpdate() {
@@ -527,12 +541,31 @@ export default function withHooks(render) {
       }
     }
 
+    applyContext(render, context, children) {
+      if (!children) {
+        children = render();
+      }
+      context = context || componentContext;
+      if (context !== null) {
+        return createElement(context.Consumer, {}, () => {
+          if (this.mounted) {
+            children = render();
+          }
+          if (context.next !== null) {
+            return applyContext(children, context.next, children);
+          }
+          return children;
+        });
+      }
+      return children;
+    }
+
     render() {
       resetHooks();
       prepareToUseHooks(this);
       const { _forwardedRef, ...rest } = this.props;
       isRenderPhase = true;
-      const nextChildren = render(rest, _forwardedRef);
+      const nextChildren = this.applyContext(() => render(rest, _forwardedRef));
       return finishHooks(render, rest, nextChildren, _forwardedRef);
     }
   }

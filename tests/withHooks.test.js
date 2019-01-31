@@ -1002,7 +1002,7 @@ describe('hooks', () => {
       expect(logger.flush()).toEqual(['Mount B']);
 
       expect(() => {
-        wrapper.setProps({ showMore: false })
+        wrapper.setProps({ showMore: false });
       }).toThrow(
         'Rendered fewer hooks than expected. This may be caused by an ' + 'accidental early return statement.',
       );
@@ -1033,6 +1033,33 @@ describe('hooks', () => {
       const wrapper = mount(<App count={0} />);
       expect(wrapper.text()).toBe('0');
       wrapper.setProps({ count: 1 });
+      expect(wrapper.text()).toBe('1');
+    });
+
+    it('works with shouldComponentUpdate', () => {
+      const CounterContext = createContext(0);
+      const Counter = withHooks(() => {
+        const count = useContext(CounterContext);
+        return <div>{count}</div>;
+      });
+      class Blank extends React.PureComponent {
+        render() {
+          return <Counter />;
+        }
+      }
+      let updateCount;
+      const App = withHooks(() => {
+        const [count, _updateCount] = useState(0);
+        updateCount = _updateCount;
+        return (
+          <CounterContext.Provider value={count}>
+            <Blank />
+          </CounterContext.Provider>
+        );
+      });
+      const wrapper = mount(<App />);
+      expect(wrapper.text()).toBe('0');
+      updateCount(1);
       expect(wrapper.text()).toBe('1');
     });
   });
