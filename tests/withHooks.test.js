@@ -474,15 +474,12 @@ describe('hooks', () => {
     it('skips effect if inputs have not changed', () => {
       const Counter = withHooks(props => {
         const text = `${props.label}: ${props.count}`;
-        useEffect(
-          () => {
-            logger.log(`Did create [${text}]`);
-            return () => {
-              logger.log(`Did destroy [${text}]`);
-            };
-          },
-          [props.label, props.count],
-        );
+        useEffect(() => {
+          logger.log(`Did create [${text}]`);
+          return () => {
+            logger.log(`Did destroy [${text}]`);
+          };
+        }, [props.label, props.count]);
         return <Text text={text} />;
       });
       const wrapper = mount(<Counter label="Count" count={0} />);
@@ -726,13 +723,10 @@ describe('hooks', () => {
     it('memoizes value by comparing to previous inputs', () => {
       const CapitalizedText = withHooks(props => {
         const text = props.text;
-        const capitalizedText = useMemo(
-          () => {
-            logger.log(`Capitalize '${text}'`);
-            return text.toUpperCase();
-          },
-          [text],
-        );
+        const capitalizedText = useMemo(() => {
+          logger.log(`Capitalize '${text}'`);
+          return text.toUpperCase();
+        }, [text]);
         return <Text text={capitalizedText} />;
       });
 
@@ -1061,6 +1055,41 @@ describe('hooks', () => {
       expect(wrapper.text()).toBe('0');
       updateCount(1);
       expect(wrapper.text()).toBe('1');
+    });
+
+    it('multiple contexts', () => {
+      const CounterContext1 = createContext();
+      const CounterContext2 = createContext();
+      const Counter = withHooks(() => {
+        const count1 = useContext(CounterContext1);
+        const count2 = useContext(CounterContext2);
+        return (
+          <div>
+            {count1}
+            {count2}
+          </div>
+        );
+      });
+      class Blank extends React.PureComponent {
+        render() {
+          return <Counter />
+        }
+      }
+      const App = props => {
+        return (
+          <CounterContext1.Provider value={props.count1}>
+            <CounterContext2.Provider value={props.count2}>
+              <Blank />
+            </CounterContext2.Provider>
+          </CounterContext1.Provider>
+        );
+      };
+      const wrapper = mount(<App count1={0} count2={0} />);
+      expect(wrapper.text()).toBe('00');
+      wrapper.setProps({ count1: 1 });
+      expect(wrapper.text()).toBe('10');
+      wrapper.setProps({ count2: 1 });
+      expect(wrapper.text()).toBe('11');
     });
   });
 });

@@ -551,10 +551,7 @@ export default function withHooks(render) {
           if (this.mounted) {
             children = render();
           }
-          if (context.next !== null) {
-            return applyContext(children, context.next, children);
-          }
-          return children;
+          return context.next === null ? children : this.applyContext(render, context.next, children);
         });
       }
       return children;
