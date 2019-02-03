@@ -14,7 +14,7 @@ declare function useRef<T>(initialValue: T | null): React.RefObject<T>;
 declare function useMutationEffect(effect: React.EffectCallback, inputs?: React.InputIdentityList): void;
 declare function useLayoutEffect(effect: React.EffectCallback, inputs?: React.InputIdentityList): void;
 declare function useEffect(effect: React.EffectCallback, inputs?: React.InputIdentityList): void;
-declare function useImperativeMethods<T, R extends T>(
+declare function useImperativeHandle<T, R extends T>(
   ref: React.Ref<T> | undefined,
   init: () => R,
   inputs?: React.InputIdentityList,
@@ -32,7 +32,7 @@ export {
   useMutationEffect,
   useLayoutEffect,
   useEffect,
-  useImperativeMethods,
+  useImperativeHandle,
   useCallback,
   useMemo,
 }

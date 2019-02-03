@@ -8,7 +8,7 @@ import withHooks, {
   useCallback,
   useMemo,
   useRef,
-  useImperativeMethods,
+  useImperativeHandle,
 } from '../src';
 
 class Logger {
@@ -43,7 +43,7 @@ describe('hooks', () => {
     it('simple mount and update', () => {
       let Counter = withHooks((props, ref) => {
         const [count, updateCount] = useState(0);
-        useImperativeMethods(ref, () => ({ updateCount }));
+        useImperativeHandle(ref, () => ({ updateCount }));
         return <Text text={'Count: ' + count} />;
       });
       Counter = forwardRef(Counter);
@@ -65,7 +65,7 @@ describe('hooks', () => {
           logger.log('getInitialState');
           return props.initialState;
         });
-        useImperativeMethods(ref, () => ({ updateCount }));
+        useImperativeHandle(ref, () => ({ updateCount }));
         return <Text text={'Count: ' + count} />;
       });
       Counter = forwardRef(Counter);
@@ -84,7 +84,7 @@ describe('hooks', () => {
       let Counter = withHooks((props, ref) => {
         const [count, updateCount] = useState(0);
         const [label, updateLabel] = useState('Count');
-        useImperativeMethods(ref, () => ({ updateCount, updateLabel }));
+        useImperativeHandle(ref, () => ({ updateCount, updateLabel }));
         return <Text text={label + ': ' + count} />;
       });
       Counter = forwardRef(Counter);
@@ -259,7 +259,7 @@ describe('hooks', () => {
       let Counter = withHooks(({ row: newRow }, ref) => {
         let [reducer, setReducer] = useState(() => reducerA);
         let [count, dispatch] = useReducer(reducer, 0);
-        useImperativeMethods(ref, () => ({ dispatch }));
+        useImperativeHandle(ref, () => ({ dispatch }));
         if (count < 20) {
           dispatch('increment');
           // Swap reducers each time we increment
@@ -313,7 +313,7 @@ describe('hooks', () => {
 
       let Counter = withHooks((props, ref) => {
         const [count, dispatch] = useReducer(reducer, 0);
-        useImperativeMethods(ref, () => ({ dispatch }));
+        useImperativeHandle(ref, () => ({ dispatch }));
         return <Text text={'Count: ' + count} />;
       });
       Counter = forwardRef(Counter);
@@ -352,7 +352,7 @@ describe('hooks', () => {
 
       let Counter = withHooks((props, ref) => {
         const [count, dispatch] = useReducer(reducer, 0, initialAction);
-        useImperativeMethods(ref, () => ({ dispatch }));
+        useImperativeHandle(ref, () => ({ dispatch }));
         return <Text text={'Count: ' + count} />;
       });
       Counter = forwardRef(Counter);

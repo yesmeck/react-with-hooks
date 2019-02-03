@@ -439,7 +439,7 @@ export function useRef(initialValue) {
   return ref;
 }
 
-export function useImperativeMethods(ref, create, inputs) {
+export function useImperativeHandler(ref, create, inputs) {
   // TODO: If inputs are provided, should we skip comparing the ref itself?
   const nextInputs = inputs !== null && inputs !== undefined ? inputs.concat([ref]) : [ref, create];
 
