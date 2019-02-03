@@ -463,10 +463,6 @@ export function useImperativeMethods(ref, create, inputs) {
   }, nextInputs);
 }
 
-export function useMutationEffect(...args) {
-  return useEffect(...args);
-}
-
 export function useLayoutEffect(...args) {
   return useEffect(...args);
 }
