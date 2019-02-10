@@ -5,7 +5,8 @@
   "main": "lib/index.js",
   "files": [
     "lib",
-    "index.d.ts"
+    "index.d.ts",
+    "polyfill.js"
   ],
   "repository": {
     "type": "git",
@@ -19,7 +20,7 @@
   "license": "MIT",
   "scripts": {
     "test": "jest",
-    "build": "babel src -d lib",
+    "build": "babel src -d lib && mv lib/polyfill-loader.js ./polyfill.js",
     "prepack": "npm run build"
   },
   "jest": {
