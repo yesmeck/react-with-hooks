@@ -5,12 +5,14 @@ const useNative = !!React.useState;
 
 const { default: withHooks, ...hooks } = reactHooks;
 
-const createElementWithHooks = useNative ? React.createElement : (() => {
+const createElementWithHooks = (() => {
   const componentMap = new Map();
   return (el, props, ...children) => {
     if (typeof el === 'function' && el.prototype && !el.prototype.isReactComponent) {
       if (!componentMap.has(el)) {
-        if (!/\buse(State|(Mutation|Layout)?Effect|Context|Reducer|Callback|Memo|Ref|ImperativeHandle)\b/.test(`${el}`)) {
+        if (
+          !/\buse(State|(Mutation|Layout)?Effect|Context|Reducer|Callback|Memo|Ref|ImperativeHandle)\b/.test(`${el}`)
+        ) {
           componentMap.set(el, el);
         } else {
           componentMap.set(el, withHooks(el));
@@ -19,14 +21,13 @@ const createElementWithHooks = useNative ? React.createElement : (() => {
       return React.createElement(componentMap.get(el), props, ...children);
     }
     return React.createElement(el, props, ...children);
-  }
+  };
 })();
 
-const newReact = {
-  ...React,
-  ...(useNative ? {} : { createElement: createElementWithHooks, ...hooks }),
-};
+React.createElement = useNative ? React.createElement : createElementWithHooks;
 
-newReact.default = { ...newReact };
-
-module.exports = newReact;
+if (!useNative) {
+  Object.keys(hooks).forEach(hook => {
+    React[hook] = hooks[hook];
+  });
+}
