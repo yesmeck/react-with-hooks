@@ -20,7 +20,7 @@
   "license": "MIT",
   "scripts": {
     "test": "jest",
-    "build": "babel src -d lib && mv lib/polyfill-loader.js ./polyfill.js",
+    "build": "babel src -d lib",
     "prepack": "npm run build"
   },
   "jest": {
