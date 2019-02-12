@@ -1,34 +1,51 @@
-const React = require('react');
-const reactHooks = require('./withHooks');
+import React from 'react';
+import * as ReactIs from 'react-is';
+import * as hooks from '.';
+import withHooks from './withHooks';
 
 const useNative = !!React.useState;
 
 const nativeCreateElement = React.createElement;
-const { default: withHooks, ...hooks } = reactHooks;
+
+function shouldConstruct(Component) {
+  const prototype = Component.prototype;
+  return !!(prototype && prototype.isReactComponent);
+}
+
+function isSimpleFunctionComponent(type) {
+  return (
+    typeof type === 'function' &&
+    !shouldConstruct(type) &&
+    type.defaultProps === undefined
+  );
+}
 
 const createElementWithHooks = (() => {
   const componentMap = new Map();
-  return (el, props, ...children) => {
-    if (typeof el === 'function' && el.prototype && !el.prototype.isReactComponent) {
-      if (!componentMap.has(el)) {
-        if (
-          !/\buse(State|(Mutation|Layout)?Effect|Context|Reducer|Callback|Memo|Ref|ImperativeHandle)\b/.test(`${el}`)
-        ) {
-          componentMap.set(el, el);
-        } else {
-          componentMap.set(el, withHooks(el));
-        }
-      }
-      return nativeCreateElement(componentMap.get(el), props, ...children);
+  return (component, props, ...children) => {
+    if (componentMap.has(component)) {
+      return nativeCreateElement(componentMap.get(component), props, ...children);
     }
-    return nativeCreateElement(el, props, ...children);
+    const element = nativeCreateElement(component, props, ...children);
+    let wrappedComponent = component;
+    if (ReactIs.isForwardRef(element)) {
+      wrappedComponent.render = withHooks(component.render);
+      componentMap.set(component, wrappedComponent);
+    }
+    if (ReactIs.isMemo(component)) {
+      wrappedComponent.type = withHooks(component.type);
+      componentMap.set(component, wrappedComponent);
+    }
+    if (isSimpleFunctionComponent(component) && component.__react_with_hooks !== true) {
+      wrappedComponent = withHooks(component);
+      componentMap.set(component, wrappedComponent);
+    }
+    return nativeCreateElement(wrappedComponent, props, ...children);
   };
 })();
 
 React.createElement = useNative ? React.createElement : createElementWithHooks;
 
-if (!useNative) {
-  Object.keys(hooks).forEach(hook => {
-    React[hook] = hooks[hook];
-  });
-}
+Object.keys(hooks).forEach(hook => {
+  React[hook] = hooks[hook];
+});

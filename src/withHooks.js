@@ -12,6 +12,7 @@ import {
   UnmountLayout,
 } from './ReactHookEffectTags';
 import is from './objectIs';
+import scheduleCallback from './scheduleCallback';
 
 const RE_RENDER_LIMIT = 25;
 
@@ -594,14 +595,29 @@ export default function withHooks(render) {
     memoizedState = null;
 
     componentDidMount() {
+      // useLayoutEffect
       this.commitHookEffectList(UnmountMutation, MountMutation);
       this.commitHookEffectList(UnmountLayout, MountLayout);
+
+
+      // useEffect
+      scheduleCallback(() => {
+        this.commitHookEffectList(UnmountPassive, NoHookEffect);
+        this.commitHookEffectList(NoHookEffect, MountPassive);
+      });
       this.mounted = true;
     }
 
     componentDidUpdate() {
+      // useLayoutEffect
       this.commitHookEffectList(UnmountMutation, MountMutation);
       this.commitHookEffectList(UnmountLayout, MountLayout);
+
+      // useEffect
+      scheduleCallback(() => {
+        this.commitHookEffectList(UnmountPassive, NoHookEffect);
+        this.commitHookEffectList(NoHookEffect, MountPassive);
+      });
     }
 
     componentWillUnmount() {
@@ -651,7 +667,7 @@ export default function withHooks(render) {
           do {
             var destroy = effect.destroy;
 
-            if (destroy !== null) {
+            if (destroy !== undefined) {
               destroy();
             }
 
@@ -745,6 +761,7 @@ export default function withHooks(render) {
   }
   WithHooks.displayName = render.displayName || render.name;
   const wrap = (props, ref) => <WithHooks {...props} _forwardedRef={ref} />;
+  wrap.__react_with_hooks = true;
   wrap.displayName = `WithHooks(${WithHooks.displayName})`;
   return wrap;
 }

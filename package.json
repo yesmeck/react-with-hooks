@@ -15,7 +15,10 @@
   "bugs": {
     "url": "https://github.com/yesmeck/react-with-hooks/issues"
   },
-  "keywords": ["react", "hooks"],
+  "keywords": [
+    "react",
+    "hooks"
+  ],
   "author": "yesmeck <yesmeck@gmail.com>",
   "license": "MIT",
   "scripts": {
@@ -44,9 +47,11 @@
     "jest": "^24.0.0",
     "react": "^16.6.0",
     "react-dom": "^16.6.0",
+    "react-reconciler": "^0.19.1",
     "regenerator-runtime": "^0.12.1"
   },
   "dependencies": {
-    "invariant": "^2.2.4"
+    "invariant": "^2.2.4",
+    "react-is": "^16.8.1"
   }
 }
