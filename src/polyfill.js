@@ -3,6 +3,7 @@ const reactHooks = require('./withHooks');
 
 const useNative = !!React.useState;
 
+const nativeCreateElement = React.createElement;
 const { default: withHooks, ...hooks } = reactHooks;
 
 const createElementWithHooks = (() => {
@@ -18,9 +19,9 @@ const createElementWithHooks = (() => {
           componentMap.set(el, withHooks(el));
         }
       }
-      return React.createElement(componentMap.get(el), props, ...children);
+      return nativeCreateElement(componentMap.get(el), props, ...children);
     }
-    return React.createElement(el, props, ...children);
+    return nativeCreateElement(el, props, ...children);
   };
 })();
 
