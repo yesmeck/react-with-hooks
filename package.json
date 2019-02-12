@@ -22,13 +22,13 @@
   "author": "yesmeck <yesmeck@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "test": "jest",
+    "test": "NODE_ENV=development jest",
     "build": "babel src -d lib",
     "prepack": "npm run build"
   },
   "jest": {
     "setupFilesAfterEnv": [
-      "<rootDir>tests/setup.js"
+      "<rootDir>scripts/jest/setupTests.js"
     ],
     "collectCoverageFrom": [
       "src/**/*.js"
@@ -42,9 +42,8 @@
     "@babel/preset-env": "^7.1.0",
     "@babel/preset-react": "^7.0.0",
     "babel-jest": "^24.0.0",
-    "enzyme": "^3.7.0",
-    "enzyme-adapter-react-16": "^1.6.0",
     "jest": "^24.0.0",
+    "jest-diff": "^24.0.0",
     "react": "^16.6.0",
     "react-dom": "^16.6.0",
     "react-reconciler": "^0.19.1",

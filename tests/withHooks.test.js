@@ -145,7 +145,7 @@ describe('hooks', () => {
       expect(updaters).toEqual([updaters[0], updaters[0], updaters[0]]);
     });
 
-    it.skip('warns on set after unmount', () => {
+    it('warns on set after unmount', () => {
       let _updateCount;
       function Counter(props, ref) {
         const [, updateCount] = useState(0);
@@ -161,8 +161,9 @@ describe('hooks', () => {
         "Warning: Can't perform a React state update on an unmounted " +
           'component. This is a no-op, but it indicates a memory leak in your ' +
           'application. To fix, cancel all subscriptions and asynchronous ' +
-          'tasks in a useEffect cleanup function.\n' +
-          '    in Counter (at **)',
+          'tasks in the componentWillUnmount method.\n' +
+          '    in Counter (created by WithHooks(Counter))\n' +
+          '    in WithHooks(Counter)',
       );
     });
 
