@@ -2,7 +2,7 @@ import React, { createContext, forwardRef, memo } from 'react';
 import { mount } from 'enzyme';
 import withHooks, {
   useState,
-  useEffect,
+  useLayoutEffect,
   useContext,
   useReducer,
   useCallback,
@@ -290,6 +290,7 @@ describe('hooks', () => {
       // Test that it works on update, too. This time the log is a bit different
       // because we started with reducerB instead of reducerA.
       counter.current.dispatch('reset');
+      wrapper.setProps({});
       expect(logger.flush()).toEqual(['Render: 0', 'Render: 1', 'Render: 11', 'Render: 12', 'Render: 22', 22]);
       expect(wrapper.text()).toEqual('22');
     });
@@ -348,33 +349,37 @@ describe('hooks', () => {
         }
       }
 
-      const initialAction = 'INITIALIZE';
-
       let Counter = withHooks((props, ref) => {
-        const [count, dispatch] = useReducer(reducer, 0, initialAction);
+        const [count, dispatch] = useReducer(reducer, props, p => {
+          logger.log('Init');
+          return p.initialCount;
+        });
         useImperativeHandle(ref, () => ({ dispatch }));
         return <Text text={'Count: ' + count} />;
       });
       Counter = forwardRef(Counter);
       const counter = React.createRef(null);
-      const App = () => <Counter ref={counter} />;
+      const App = () => <Counter initialCount={10} ref={counter} />;
       const wrapper = mount(<App />);
+      expect(logger.flush()).toEqual(['Init', 'Count: 10']);
       expect(wrapper.text()).toEqual('Count: 10');
 
       counter.current.dispatch(INCREMENT);
+      expect(logger.flush()).toEqual(['Count: 11']);
       expect(wrapper.text()).toEqual('Count: 11');
 
       counter.current.dispatch(DECREMENT);
       counter.current.dispatch(DECREMENT);
       counter.current.dispatch(DECREMENT);
+      expect(logger.flush()).toEqual(['Count: 10', 'Count: 9', 'Count: 8']);
       expect(wrapper.text()).toEqual('Count: 8');
     });
   });
 
-  describe('useEffect', () => {
+  describe('useLayoutEffect', () => {
     it('simple mount and update', () => {
       const Counter = withHooks(props => {
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Did commit [${props.count}]`);
         });
         return <Text text={'Count: ' + props.count} />;
@@ -390,7 +395,7 @@ describe('hooks', () => {
 
     it('unmounts previous effect', () => {
       const Counter = withHooks(props => {
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Did create [${props.count}]`);
           return () => {
             logger.log(`Did destroy [${props.count}]`);
@@ -409,7 +414,7 @@ describe('hooks', () => {
 
     it('unmounts on deletion', () => {
       const Counter = withHooks(props => {
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Did create [${props.count}]`);
           return () => {
             logger.log(`Did destroy [${props.count}]`);
@@ -425,56 +430,32 @@ describe('hooks', () => {
       expect(logger.flush()).toEqual(['Did destroy [0]']);
     });
 
-    it('unmounts on deletion after skipped effect', () => {
+    it('always fires effects if no dependencies are provided', () => {
       const Counter = withHooks(props => {
-        useEffect(() => {
-          logger.log(`Did create [${props.count}]`);
+        useLayoutEffect(() => {
+          logger.log(`Did create`);
           return () => {
-            logger.log(`Did destroy [${props.count}]`);
+            logger.log(`Did destroy`);
           };
-        }, []);
+        });
         return <Text text={'Count: ' + props.count} />;
       });
       const wrapper = mount(<Counter count={0} />);
       expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Did create [0]']);
+      expect(logger.flush()).toEqual(['Count: 0', 'Did create']);
 
       wrapper.setProps({ count: 1 });
       expect(wrapper.text()).toEqual('Count: 1');
-      expect(logger.flush()).toEqual(['Count: 1']);
+      expect(logger.flush()).toEqual(['Count: 1', 'Did destroy', 'Did create']);
 
       wrapper.unmount();
-      expect(logger.flush()).toEqual(['Did destroy [0]']);
-    });
-
-    it('skips effect if constructor has not changed', () => {
-      function effect() {
-        logger.log(`Did mount`);
-        return () => {
-          logger.log(`Did unmount`);
-        };
-      }
-      const Counter = withHooks(props => {
-        useEffect(effect);
-        return <Text text={'Count: ' + props.count} />;
-      });
-      const wrapper = mount(<Counter count={0} />);
-      expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Did mount']);
-
-      wrapper.setProps({ count: 1 });
-      // No effect, because constructor was hoisted outside render
-      expect(logger.flush()).toEqual(['Count: 1']);
-      expect(wrapper.text()).toEqual('Count: 1');
-
-      wrapper.unmount();
-      expect(logger.flush()).toEqual(['Did unmount']);
+      expect(logger.flush()).toEqual(['Did destroy']);
     });
 
     it('skips effect if inputs have not changed', () => {
       const Counter = withHooks(props => {
         const text = `${props.label}: ${props.count}`;
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Did create [${text}]`);
           return () => {
             logger.log(`Did destroy [${text}]`);
@@ -504,10 +485,10 @@ describe('hooks', () => {
 
     it('multiple effects', () => {
       const Counter = withHooks(props => {
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Did commit 1 [${props.count}]`);
         });
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Did commit 2 [${props.count}]`);
         });
         return <Text text={'Count: ' + props.count} />;
@@ -523,13 +504,13 @@ describe('hooks', () => {
 
     it('unmounts all previous effects before creating any new ones', () => {
       const Counter = withHooks(props => {
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Mount A [${props.count}]`);
           return () => {
             logger.log(`Unmount A [${props.count}]`);
           };
         });
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Mount B [${props.count}]`);
           return () => {
             logger.log(`Unmount B [${props.count}]`);
@@ -548,13 +529,13 @@ describe('hooks', () => {
 
     it.skip('handles errors on mount', () => {
       const Counter = withHooks(props => {
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Mount A [${props.count}]`);
           return () => {
             logger.log(`Unmount A [${props.count}]`);
           };
         });
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log('Oops!');
           throw new Error('Oops!');
           // eslint-disable-next-line no-unreachable
@@ -580,13 +561,13 @@ describe('hooks', () => {
 
     it.skip('handles errors on update', () => {
       const Counter = withHooks(props => {
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Mount A [${props.count}]`);
           return () => {
             logger.log(`Unmount A [${props.count}]`);
           };
         });
-        useEffect(() => {
+        useLayoutEffect(() => {
           if (props.count === 1) {
             logger.log('Oops!');
             throw new Error('Oops!');
@@ -618,7 +599,7 @@ describe('hooks', () => {
 
     it.skip('handles errors on unmount', () => {
       const Counter = withHooks(props => {
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Mount A [${props.count}]`);
           return () => {
             logger.log('Oops!');
@@ -627,7 +608,7 @@ describe('hooks', () => {
             logger.log(`Unmount A [${props.count}]`);
           };
         });
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log(`Mount B [${props.count}]`);
           return () => {
             logger.log(`Unmount B [${props.count}]`);
@@ -747,7 +728,7 @@ describe('hooks', () => {
       expect(wrapper.text()).toEqual('GOODBYE');
     });
 
-    it('compares function if no inputs are provided', () => {
+    it('always re-computes if no inputs are provided', () => {
       const LazyCompute = withHooks(props => {
         const computed = useMemo(props.compute);
         return <Text text={computed} />;
@@ -767,10 +748,10 @@ describe('hooks', () => {
       expect(logger.flush()).toEqual(['compute A', 'A']);
 
       wrapper.setProps({});
-      expect(logger.flush()).toEqual(['A']);
+      expect(logger.flush()).toEqual(['compute A', 'A']);
 
       wrapper.setProps({});
-      expect(logger.flush()).toEqual(['A']);
+      expect(logger.flush()).toEqual(['compute A', 'A']);
 
       wrapper.setProps({ compute: computeB });
       expect(logger.flush()).toEqual(['compute B', 'B']);
@@ -808,7 +789,7 @@ describe('hooks', () => {
 
       function useDebouncedCallback(callback, ms, inputs) {
         const timeoutID = useRef(-1);
-        useEffect(() => {
+        useLayoutEffect(() => {
           return function unmount() {
             clearTimeout(timeoutID.current);
           };
@@ -970,7 +951,7 @@ describe('hooks', () => {
 
     it.skip('unmount effects', () => {
       const App = withHooks(props => {
-        useEffect(() => {
+        useLayoutEffect(() => {
           logger.log('Mount A');
           return () => {
             logger.log('Unmount A');
@@ -978,7 +959,7 @@ describe('hooks', () => {
         }, []);
 
         if (props.showMore) {
-          useEffect(() => {
+          useLayoutEffect(() => {
             logger.log('Mount B');
             return () => {
               logger.log('Unmount B');

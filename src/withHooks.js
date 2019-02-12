@@ -1,23 +1,39 @@
 import React, { createElement } from 'react';
 import invariant from 'invariant';
+import ReactCurrentDispatcher from './ReactCurrentDispatcher';
+import { Update as UpdateEffect, Passive as PassiveEffect } from './ReactSideEffectTags';
+import {
+  NoEffect as NoHookEffect,
+  UnmountMutation,
+  MountLayout,
+  UnmountPassive,
+  MountPassive,
+  MountMutation,
+  UnmountLayout,
+} from './ReactHookEffectTags';
+import is from './objectIs';
 
 const RE_RENDER_LIMIT = 25;
-const NoEffect = /*             */ 0b00000000;
-const MountPassive = /*         */ 0b01000000;
-const UnmountPassive = /*       */ 0b10000000;
 
-let firstWorkInProgressHook = null;
 let firstCurrentHook = null;
+let firstWorkInProgressHook = null;
 let currentHook = null;
+let nextCurrentHook = null;
 let workInProgressHook = null;
-let isReRender = false;
+let nextWorkInProgressHook = null;
 let didScheduleRenderPhaseUpdate = false;
 let currentInstance = null;
 let renderPhaseUpdates = null;
 let numberOfReRenders = 0;
 let componentUpdateQueue = null;
+let sideEffectTag = 0;
 let componentContext = null;
 let isRenderPhase = false;
+let didReceiveUpdate = false;
+
+function markWorkInProgressReceivedUpdate() {
+  didReceiveUpdate = true;
+}
 
 function basicStateReducer(state, action) {
   return typeof action === 'function' ? action(state) : action;
@@ -25,54 +41,7 @@ function basicStateReducer(state, action) {
 
 function prepareToUseHooks(current) {
   currentInstance = current;
-  firstCurrentHook = current.memoizedState ? current.memoizedState : null;
-}
-
-function finishHooks(render, props, children, refOrContext) {
-  while (didScheduleRenderPhaseUpdate) {
-    // Updates were scheduled during the render phase. They are stored in
-    // the `renderPhaseUpdates` map. Call the component again, reusing the
-    // work-in-progress hooks and applying the additional updates on top. Keep
-    // restarting until no more updates are scheduled.
-    didScheduleRenderPhaseUpdate = false;
-    numberOfReRenders += 1;
-
-    // Start over from the beginning of the list
-    currentHook = null;
-    workInProgressHook = null;
-    componentUpdateQueue = null;
-
-    children = currentInstance.applyContext(() => render(props, refOrContext));
-
-    componentContext = null;
-  }
-  renderPhaseUpdates = null;
-  numberOfReRenders = 0;
-  currentInstance.firstHook = firstWorkInProgressHook;
-
-  const renderedInstance = currentInstance;
-
-  renderedInstance.memoizedState = firstWorkInProgressHook;
-  renderedInstance.updateQueue = componentUpdateQueue;
-
-  const didRenderTooFewHooks = currentHook !== null && currentHook.next !== null;
-
-  currentInstance = null;
-
-  firstCurrentHook = null;
-  currentHook = null;
-  firstWorkInProgressHook = null;
-  workInProgressHook = null;
-  componentUpdateQueue = null;
-  componentContext = null;
-  isRenderPhase = false;
-
-  invariant(
-    !didRenderTooFewHooks,
-    'Rendered fewer hooks than expected. This may be caused by an accidental ' + 'early return statement.',
-  );
-
-  return children;
+  firstCurrentHook = nextCurrentHook = current !== null ? current.memoizedState : null;
 }
 
 function resetHooks() {
@@ -90,77 +59,64 @@ function resetHooks() {
   isRenderPhase = false;
 }
 
-function createHook() {
-  return {
+function mountWorkInProgressHook() {
+  const hook = {
     memoizedState: null,
+
     baseState: null,
     queue: null,
     baseUpdate: null,
+
     next: null,
   };
-}
 
-function cloneHook(hook) {
-  return {
-    memoizedState: hook.memoizedState,
-    baseState: hook.memoizedState,
-    queue: hook.queue,
-    baseUpdate: hook.baseUpdate,
-    next: null,
-  };
-}
-
-function createWorkInProgressHook() {
   if (workInProgressHook === null) {
     // This is the first hook in the list
-    if (firstWorkInProgressHook === null) {
-      isReRender = false;
-      currentHook = firstCurrentHook;
-
-      if (currentHook === null) {
-        // This is a newly mounted hook
-        workInProgressHook = createHook();
-      } else {
-        // Clone the current hook.
-        workInProgressHook = cloneHook(currentHook);
-      }
-
-      firstWorkInProgressHook = workInProgressHook;
-    } else {
-      // There's already a work-in-progress. Reuse it.
-      isReRender = true;
-      currentHook = firstCurrentHook;
-      workInProgressHook = firstWorkInProgressHook;
-    }
+    firstWorkInProgressHook = workInProgressHook = hook;
   } else {
-    if (workInProgressHook.next === null) {
-      isReRender = false;
-      var hook = void 0;
-
-      if (currentHook === null) {
-        // This is a newly mounted hook
-        hook = createHook();
-      } else {
-        currentHook = currentHook.next;
-
-        if (currentHook === null) {
-          // This is a newly mounted hook
-          hook = createHook();
-        } else {
-          // Clone the current hook.
-          hook = cloneHook(currentHook);
-        }
-      } // Append to the end of the list
-
-      workInProgressHook = workInProgressHook.next = hook;
-    } else {
-      // There's already a work-in-progress. Reuse it.
-      isReRender = true;
-      workInProgressHook = workInProgressHook.next;
-      currentHook = currentHook !== null ? currentHook.next : null;
-    }
+    // Append to the end of the list
+    workInProgressHook = workInProgressHook.next = hook;
   }
+  return workInProgressHook;
+}
 
+function updateWorkInProgressHook() {
+  // This function is used both for updates and for re-renders triggered by a
+  // render phase update. It assumes there is either a current hook we can
+  // clone, or a work-in-progress hook from a previous render pass that we can
+  // use as a base. When we reach the end of the base list, we must switch to
+  // the dispatcher used for mounts.
+  if (nextWorkInProgressHook !== null) {
+    // There's already a work-in-progress. Reuse it.
+    workInProgressHook = nextWorkInProgressHook;
+    nextWorkInProgressHook = workInProgressHook.next;
+
+    currentHook = nextCurrentHook;
+    nextCurrentHook = currentHook !== null ? currentHook.next : null;
+  } else {
+    // Clone from the current hook.
+    invariant(nextCurrentHook !== null, 'Rendered more hooks than during the previous render.');
+    currentHook = nextCurrentHook;
+
+    const newHook = {
+      memoizedState: currentHook.memoizedState,
+
+      baseState: currentHook.baseState,
+      queue: currentHook.queue,
+      baseUpdate: currentHook.baseUpdate,
+
+      next: null,
+    };
+
+    if (workInProgressHook === null) {
+      // This is the first hook in the list.
+      workInProgressHook = firstWorkInProgressHook = newHook;
+    } else {
+      // Append to the end of the list.
+      workInProgressHook = workInProgressHook.next = newHook;
+    }
+    nextCurrentHook = currentHook.next;
+  }
   return workInProgressHook;
 }
 
@@ -170,11 +126,13 @@ function createFunctionComponentUpdateQueue() {
   };
 }
 
-function inputsAreEqual(arr1, arr2) {
-  for (let i = 0; i < arr1.length; i++) {
-    const val1 = arr1[i];
-    const val2 = arr2[i];
-    if ((val1 === val2 && (val1 !== 0 || 1 / val1 === 1 / val2)) || (val1 !== val1 && val2 !== val2)) {
+function areHookInputsEqual(nextDeps, prevDeps) {
+  if (prevDeps === null) {
+    return false;
+  }
+
+  for (let i = 0; i < prevDeps.length && i < nextDeps.length; i++) {
+    if (is(nextDeps[i], prevDeps[i])) {
       continue;
     }
     return false;
@@ -182,12 +140,32 @@ function inputsAreEqual(arr1, arr2) {
   return true;
 }
 
-function pushEffect(tag, create, destroy, inputs) {
+function mountState(initialState) {
+  const hook = mountWorkInProgressHook();
+  if (typeof initialState === 'function') {
+    initialState = initialState();
+  }
+  hook.memoizedState = hook.baseState = initialState;
+  const queue = (hook.queue = {
+    last: null,
+    dispatch: null,
+    eagerReducer: basicStateReducer,
+    eagerState: initialState,
+  });
+  const dispatch = (queue.dispatch = dispatchAction.bind(null, currentInstance, queue));
+  return [hook.memoizedState, dispatch];
+}
+
+function updateState(initialState) {
+  return updateReducer(basicStateReducer, initialState);
+}
+
+function pushEffect(tag, create, destroy, deps) {
   const effect = {
     tag,
     create,
     destroy,
-    inputs,
+    deps,
     // Circular
     next: null,
   };
@@ -219,6 +197,293 @@ function pushContext(context) {
     componentContext.next = _context;
   }
   return _context;
+}
+
+function mountRef(initialValue) {
+  const hook = mountWorkInProgressHook();
+  const ref = { current: initialValue };
+  hook.memoizedState = ref;
+  return ref;
+}
+
+function updateRef() {
+  const hook = updateWorkInProgressHook();
+  return hook.memoizedState;
+}
+
+function mountEffectImpl(fiberEffectTag, hookEffectTag, create, deps) {
+  const hook = mountWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  sideEffectTag |= fiberEffectTag;
+  hook.memoizedState = pushEffect(hookEffectTag, create, undefined, nextDeps);
+}
+
+function updateEffectImpl(fiberEffectTag, hookEffectTag, create, deps) {
+  const hook = updateWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  let destroy = undefined;
+
+  if (currentHook !== null) {
+    const prevEffect = currentHook.memoizedState;
+    destroy = prevEffect.destroy;
+    if (nextDeps !== null) {
+      const prevDeps = prevEffect.deps;
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        pushEffect(NoHookEffect, create, destroy, nextDeps);
+        return;
+      }
+    }
+  }
+
+  sideEffectTag |= fiberEffectTag;
+  hook.memoizedState = pushEffect(hookEffectTag, create, destroy, nextDeps);
+}
+
+function mountEffect(create, deps) {
+  return mountEffectImpl(UpdateEffect | PassiveEffect, UnmountPassive | MountPassive, create, deps);
+}
+
+function updateEffect(create, deps) {
+  return updateEffectImpl(UpdateEffect | PassiveEffect, UnmountPassive | MountPassive, create, deps);
+}
+
+function mountLayoutEffect(create, deps) {
+  return mountEffectImpl(UpdateEffect, UnmountMutation | MountLayout, create, deps);
+}
+
+function updateLayoutEffect(create, deps) {
+  return updateEffectImpl(UpdateEffect, UnmountMutation | MountLayout, create, deps);
+}
+
+function imperativeHandleEffect(create, ref) {
+  if (typeof ref === 'function') {
+    const refCallback = ref;
+    const inst = create();
+    refCallback(inst);
+    return () => {
+      refCallback(null);
+    };
+  } else if (ref !== null && ref !== undefined) {
+    const refObject = ref;
+    const inst = create();
+    refObject.current = inst;
+    return () => {
+      refObject.current = null;
+    };
+  }
+}
+
+function mountImperativeHandle(ref, create, deps) {
+  // TODO: If deps are provided, should we skip comparing the ref itself?
+  const effectDeps = deps !== null && deps !== undefined ? deps.concat([ref]) : [ref];
+
+  return mountEffectImpl(
+    UpdateEffect,
+    UnmountMutation | MountLayout,
+    imperativeHandleEffect.bind(null, create, ref),
+    effectDeps,
+  );
+}
+
+function updateImperativeHandle(ref, create, deps) {
+  // TODO: If deps are provided, should we skip comparing the ref itself?
+  const effectDeps = deps !== null && deps !== undefined ? deps.concat([ref]) : [ref];
+
+  return updateEffectImpl(
+    UpdateEffect,
+    UnmountMutation | MountLayout,
+    imperativeHandleEffect.bind(null, create, ref),
+    effectDeps,
+  );
+}
+
+function mountContext(Context) {
+  pushContext(Context);
+  return Context._currentValue;
+}
+
+function mountReducer(reducer, initialArg, init) {
+  const hook = mountWorkInProgressHook();
+  let initialState;
+  if (init !== undefined) {
+    initialState = init(initialArg);
+  } else {
+    initialState = initialArg;
+  }
+  hook.memoizedState = hook.baseState = initialState;
+  const queue = (hook.queue = {
+    last: null,
+    dispatch: null,
+    eagerReducer: reducer,
+    eagerState: initialState,
+  });
+  const dispatch = (queue.dispatch = dispatchAction.bind(
+    null,
+    // Flow doesn't know this is non-null, but we do.
+    currentInstance,
+    queue,
+  ));
+  return [hook.memoizedState, dispatch];
+}
+
+function updateReducer(reducer, initialArg, init) {
+  const hook = updateWorkInProgressHook();
+  const queue = hook.queue;
+  invariant(queue !== null, 'Should have a queue. This is likely a bug in React. Please file an issue.');
+
+  if (numberOfReRenders > 0) {
+    // This is a re-render. Apply the new render phase updates to the previous
+    // work-in-progress hook.
+    const dispatch = queue.dispatch;
+    if (renderPhaseUpdates !== null) {
+      // Render phase updates are stored in a map of queue -> linked list
+      const firstRenderPhaseUpdate = renderPhaseUpdates.get(queue);
+      if (firstRenderPhaseUpdate !== undefined) {
+        renderPhaseUpdates.delete(queue);
+        let newState = hook.memoizedState;
+        let update = firstRenderPhaseUpdate;
+        do {
+          // Process this render phase update. We don't have to check the
+          // priority because it will always be the same as the current
+          // render's.
+          const action = update.action;
+          newState = reducer(newState, action);
+          update = update.next;
+        } while (update !== null);
+
+        // Mark that the fiber performed work, but only if the new state is
+        // different from the current state.
+        if (!is(newState, hook.memoizedState)) {
+          markWorkInProgressReceivedUpdate();
+        }
+
+        hook.memoizedState = newState;
+
+        // Don't persist the state accumlated from the render phase updates to
+        // the base state unless the queue is empty.
+        // TODO: Not sure if this is the desired semantics, but it's what we
+        // do for gDSFP. I can't remember why.
+        if (hook.baseUpdate === queue.last) {
+          hook.baseState = newState;
+        }
+
+        return [newState, dispatch];
+      }
+    }
+    return [hook.memoizedState, dispatch];
+  }
+
+  // The last update in the entire queue
+  const last = queue.last;
+  // The last update that is part of the base state.
+  const baseUpdate = hook.baseUpdate;
+  const baseState = hook.baseState;
+
+  // Find the first unprocessed update.
+  let first;
+  if (baseUpdate !== null) {
+    if (last !== null) {
+      // For the first update, the queue is a circular linked list where
+      // `queue.last.next = queue.first`. Once the first update commits, and
+      // the `baseUpdate` is no longer empty, we can unravel the list.
+      last.next = null;
+    }
+    first = baseUpdate.next;
+  } else {
+    first = last !== null ? last.next : null;
+  }
+  if (first !== null) {
+    let newState = baseState;
+    let newBaseState = null;
+    let newBaseUpdate = null;
+    let prevUpdate = baseUpdate;
+    let update = first;
+    let didSkip = false;
+
+    do {
+      // Process this update.
+      if (update.eagerReducer === reducer) {
+        // If this update was processed eagerly, and its reducer matches the
+        // current reducer, we can use the eagerly computed state.
+        newState = update.eagerState;
+      } else {
+        const action = update.action;
+        newState = reducer(newState, action);
+      }
+      prevUpdate = update;
+      update = update.next;
+    } while (update !== null && update !== first);
+
+    if (!didSkip) {
+      newBaseUpdate = prevUpdate;
+      newBaseState = newState;
+    }
+
+    // Mark that the fiber performed work, but only if the new state is
+    // different from the current state.
+    if (!is(newState, hook.memoizedState)) {
+      markWorkInProgressReceivedUpdate();
+    }
+
+    hook.memoizedState = newState;
+    hook.baseUpdate = newBaseUpdate;
+    hook.baseState = newBaseState;
+
+    queue.eagerReducer = reducer;
+    queue.eagerState = newState;
+  }
+
+  const dispatch = queue.dispatch;
+  return [hook.memoizedState, dispatch];
+}
+
+function mountCallback(callback, deps) {
+  const hook = mountWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  hook.memoizedState = [callback, nextDeps];
+  return callback;
+}
+
+function updateCallback(callback, deps) {
+  const hook = updateWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  const prevState = hook.memoizedState;
+  if (prevState !== null) {
+    if (nextDeps !== null) {
+      const prevDeps = prevState[1];
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        return prevState[0];
+      }
+    }
+  }
+  hook.memoizedState = [callback, nextDeps];
+  return callback;
+}
+
+function mountMemo(nextCreate, deps) {
+  const hook = mountWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  const nextValue = nextCreate();
+  hook.memoizedState = [nextValue, nextDeps];
+  return nextValue;
+}
+
+function updateMemo(nextCreate, deps) {
+  const hook = updateWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  const prevState = hook.memoizedState;
+  if (prevState !== null) {
+    // Assume these are defined. If they're not, areHookInputsEqual will warn.
+    if (nextDeps !== null) {
+      const prevDeps = prevState[1];
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        return prevState[0];
+      }
+    }
+  }
+  const nextValue = nextCreate();
+  hook.memoizedState = [nextValue, nextDeps];
+  return nextValue;
 }
 
 function dispatchAction(instance, queue, action) {
@@ -268,216 +533,75 @@ function dispatchAction(instance, queue, action) {
       last.next = update;
     }
     queue.last = update;
+
+    // The queue is currently empty, which means we can eagerly compute the
+    // next state before entering the render phase. If the new state is the
+    // same as the current state, we may be able to bail out entirely.
+    const eagerReducer = queue.eagerReducer;
+    if (eagerReducer !== null) {
+      let prevDispatcher;
+      try {
+        const currentState = queue.eagerState;
+        const eagerState = eagerReducer(currentState, action);
+        // Stash the eagerly computed state, and the reducer used to compute
+        // it, on the update object. If the reducer hasn't changed by the
+        // time we enter the render phase, then the eager state can be used
+        // without calling the reducer again.
+        update.eagerReducer = eagerReducer;
+        update.eagerState = eagerState;
+        if (is(eagerState, currentState)) {
+          // Fast path. We can bail out without scheduling React to re-render.
+          // It's still possible that we'll need to rebase this update later,
+          // if the component re-renders for a different reason and by that
+          // time the reducer has changed.
+          return;
+        }
+      } catch (error) {
+        // Suppress the error. It will throw again in the render phase.
+      }
+    }
+
     instance.setState({});
   }
 }
 
-export function useState(initialState) {
-  return useReducer(basicStateReducer, initialState);
-}
+const HooksDispatcherOnMount = {
+  useCallback: mountCallback,
+  useContext: mountContext,
+  useEffect: mountEffect,
+  useImperativeHandle: mountImperativeHandle,
+  useLayoutEffect: mountLayoutEffect,
+  useMemo: mountMemo,
+  useReducer: mountReducer,
+  useRef: mountRef,
+  useState: mountState,
+};
 
-export function useEffect(create, inputs) {
-  const workInProgressHook = createWorkInProgressHook();
-
-  let nextInputs = inputs !== undefined && inputs !== null ? inputs : [create];
-  let destroy = null;
-  if (currentHook !== null) {
-    const prevEffect = currentHook.memoizedState;
-    destroy = prevEffect.destroy;
-    if (inputsAreEqual(nextInputs, prevEffect.inputs)) {
-      pushEffect(NoEffect, create, destroy, nextInputs);
-      return;
-    }
-  }
-
-  workInProgressHook.memoizedState = pushEffect(UnmountPassive | MountPassive, create, destroy, nextInputs);
-}
-
-export function useContext(Context) {
-  pushContext(Context);
-  return Context._currentValue;
-}
-
-export function useReducer(reducer, initialState, initialAction) {
-  workInProgressHook = createWorkInProgressHook();
-  let queue = workInProgressHook.queue;
-  if (queue !== null) {
-    // Already have a queue, so this is an update.
-    if (isReRender) {
-      // This is a re-render. Apply the new render phase updates to the previous
-      // work-in-progress hook.
-      const dispatch = queue.dispatch;
-      if (renderPhaseUpdates !== null) {
-        // Render phase updates are stored in a map of queue -> linked list
-        const firstRenderPhaseUpdate = renderPhaseUpdates.get(queue);
-        if (firstRenderPhaseUpdate !== undefined) {
-          renderPhaseUpdates.delete(queue);
-          let newState = workInProgressHook.memoizedState;
-          let update = firstRenderPhaseUpdate;
-          do {
-            // Process this render phase update. We don't have to check the
-            // priority because it will always be the same as the current
-            // render's.
-            const action = update.action;
-            newState = reducer(newState, action);
-            update = update.next;
-          } while (update !== null);
-
-          workInProgressHook.memoizedState = newState;
-
-          // Don't persist the state accumlated from the render phase updates to
-          // the base state unless the queue is empty.
-          // TODO: Not sure if this is the desired semantics, but it's what we
-          // do for gDSFP. I can't remember why.
-          if (workInProgressHook.baseUpdate === queue.last) {
-            workInProgressHook.baseState = newState;
-          }
-
-          return [newState, dispatch];
-        }
-      }
-      return [workInProgressHook.memoizedState, dispatch];
-    }
-
-    // The last update in the entire queue
-    const last = queue.last;
-    // The last update that is part of the base state.
-    const baseUpdate = workInProgressHook.baseUpdate;
-
-    // Find the first unprocessed update.
-    let first;
-    if (baseUpdate !== null) {
-      if (last !== null) {
-        // For the first update, the queue is a circular linked list where
-        // `queue.last.next = queue.first`. Once the first update commits, and
-        // the `baseUpdate` is no longer empty, we can unravel the list.
-        last.next = null;
-      }
-      first = baseUpdate.next;
-    } else {
-      first = last !== null ? last.next : null;
-    }
-    if (first !== null) {
-      let newState = workInProgressHook.baseState;
-      let newBaseState = null;
-      let newBaseUpdate = null;
-      let prevUpdate = baseUpdate;
-      let update = first;
-      let didSkip = false;
-      do {
-        // Process this update.
-        const action = update.action;
-        newState = reducer(newState, action);
-        prevUpdate = update;
-        update = update.next;
-      } while (update !== null && update !== first);
-
-      if (!didSkip) {
-        newBaseUpdate = prevUpdate;
-        newBaseState = newState;
-      }
-
-      workInProgressHook.memoizedState = newState;
-      workInProgressHook.baseUpdate = newBaseUpdate;
-      workInProgressHook.baseState = newBaseState;
-    }
-
-    const dispatch = queue.dispatch;
-    return [workInProgressHook.memoizedState, dispatch];
-  }
-
-  // There's no existing queue, so this is the initial render.
-  if (reducer === basicStateReducer) {
-    // Special case for `useState`.
-    if (typeof initialState === 'function') {
-      initialState = initialState();
-    }
-  } else if (initialAction !== undefined && initialAction !== null) {
-    initialState = reducer(initialState, initialAction);
-  }
-  workInProgressHook.memoizedState = workInProgressHook.baseState = initialState;
-  queue = workInProgressHook.queue = {
-    last: null,
-    dispatch: null,
-  };
-  const dispatch = (queue.dispatch = dispatchAction.bind(null, currentInstance, queue));
-  return [workInProgressHook.memoizedState, dispatch];
-}
-
-export function useCallback(fn, deps) {
-  return useMemo(() => fn, deps);
-}
-
-export function useMemo(nextCreate, inputs) {
-  const workInProgressHook = createWorkInProgressHook();
-
-  const nextInputs = inputs !== undefined && inputs !== null ? inputs : [nextCreate];
-
-  const prevState = workInProgressHook.memoizedState;
-  if (prevState !== null) {
-    const prevInputs = prevState[1];
-    if (inputsAreEqual(nextInputs, prevInputs)) {
-      return prevState[0];
-    }
-  }
-
-  const nextValue = nextCreate();
-  workInProgressHook.memoizedState = [nextValue, nextInputs];
-  return nextValue;
-}
-
-export function useRef(initialValue) {
-  workInProgressHook = createWorkInProgressHook();
-  let ref;
-
-  if (workInProgressHook.memoizedState === null) {
-    ref = { current: initialValue };
-    workInProgressHook.memoizedState = ref;
-  } else {
-    ref = workInProgressHook.memoizedState;
-  }
-  return ref;
-}
-
-export function useImperativeHandler(ref, create, inputs) {
-  // TODO: If inputs are provided, should we skip comparing the ref itself?
-  const nextInputs = inputs !== null && inputs !== undefined ? inputs.concat([ref]) : [ref, create];
-
-  // TODO: I've implemented this on top of useEffect because it's almost the
-  // same thing, and it would require an equal amount of code. It doesn't seem
-  // like a common enough use case to justify the additional size.
-  useEffect(() => {
-    if (typeof ref === 'function') {
-      const refCallback = ref;
-      const inst = create();
-      refCallback(inst);
-      return () => refCallback(null);
-    } else if (ref !== null && ref !== undefined) {
-      const refObject = ref;
-      const inst = create();
-      refObject.current = inst;
-      return () => {
-        refObject.current = null;
-      };
-    }
-  }, nextInputs);
-}
-
-export function useLayoutEffect(...args) {
-  return useEffect(...args);
-}
+const HooksDispatcherOnUpdate = {
+  useCallback: updateCallback,
+  useContext: mountContext,
+  useEffect: updateEffect,
+  useImperativeHandle: updateImperativeHandle,
+  useLayoutEffect: updateLayoutEffect,
+  useMemo: updateMemo,
+  useReducer: updateReducer,
+  useRef: updateRef,
+  useState: updateState,
+};
 
 export default function withHooks(render) {
   class WithHooks extends React.Component {
+    memoizedState = null;
+
     componentDidMount() {
-      this.commitHookEffectList(UnmountPassive, NoEffect);
-      this.commitHookEffectList(NoEffect, MountPassive);
+      this.commitHookEffectList(UnmountMutation, MountMutation);
+      this.commitHookEffectList(UnmountLayout, MountLayout);
       this.mounted = true;
     }
 
     componentDidUpdate() {
-      this.commitHookEffectList(UnmountPassive, NoEffect);
-      this.commitHookEffectList(NoEffect, MountPassive);
+      this.commitHookEffectList(UnmountMutation, MountMutation);
+      this.commitHookEffectList(UnmountLayout, MountLayout);
     }
 
     componentWillUnmount() {
@@ -490,11 +614,11 @@ export default function withHooks(render) {
         const firstEffect = lastEffect.next;
         let effect = firstEffect;
         do {
-          if ((effect.tag & unmountTag) !== NoEffect) {
+          if ((effect.tag & unmountTag) !== NoHookEffect) {
             // Unmount
             const destroy = effect.destroy;
-            effect.destroy = null;
-            if (destroy !== null) {
+            effect.destroy = undefined;
+            if (destroy !== undefined) {
               destroy();
             }
           }
@@ -503,11 +627,11 @@ export default function withHooks(render) {
 
         effect = firstEffect;
         do {
-          if ((effect.tag & mountTag) !== NoEffect) {
+          if ((effect.tag & mountTag) !== NoHookEffect) {
             // Mount
             const create = effect.create;
             const destroy = create();
-            effect.destroy = typeof destroy === 'function' ? destroy : null;
+            effect.destroy = typeof destroy === 'function' ? destroy : undefined;
           }
           effect = effect.next;
         } while (effect !== firstEffect);
@@ -556,10 +680,67 @@ export default function withHooks(render) {
     render() {
       resetHooks();
       prepareToUseHooks(this);
+
+      ReactCurrentDispatcher.current = nextCurrentHook === null ? HooksDispatcherOnMount : HooksDispatcherOnUpdate;
+
       const { _forwardedRef, ...rest } = this.props;
+
       isRenderPhase = true;
-      const nextChildren = this.applyContext(() => render(rest, _forwardedRef));
-      return finishHooks(render, rest, nextChildren, _forwardedRef);
+
+      let children = this.applyContext(() => render(rest, _forwardedRef));
+
+      if (didScheduleRenderPhaseUpdate) {
+        do {
+          didScheduleRenderPhaseUpdate = false;
+          numberOfReRenders += 1;
+
+          // Start over from the beginning of the list
+          firstCurrentHook = nextCurrentHook = this.memoizedState;
+          nextWorkInProgressHook = firstWorkInProgressHook;
+
+          currentHook = null;
+          workInProgressHook = null;
+          componentUpdateQueue = null;
+
+          ReactCurrentDispatcher.current = HooksDispatcherOnUpdate;
+
+          children = render(this.props, _forwardedRef);
+        } while (didScheduleRenderPhaseUpdate);
+
+        renderPhaseUpdates = null;
+        numberOfReRenders = 0;
+      }
+
+      this.memoizedState = firstWorkInProgressHook;
+      this.updateQueue = componentUpdateQueue;
+      this.effectTag |= sideEffectTag;
+
+      const didRenderTooFewHooks = currentHook !== null && currentHook.next !== null;
+
+      currentInstance = null;
+
+      firstCurrentHook = null;
+      currentHook = null;
+      nextCurrentHook = null;
+      firstWorkInProgressHook = null;
+      workInProgressHook = null;
+      nextWorkInProgressHook = null;
+
+      componentUpdateQueue = null;
+      sideEffectTag = 0;
+      isRenderPhase = false;
+
+      // These were reset above
+      // didScheduleRenderPhaseUpdate = false;
+      // renderPhaseUpdates = null;
+      // numberOfReRenders = 0;
+
+      invariant(
+        !didRenderTooFewHooks,
+        'Rendered fewer hooks than expected. This may be caused by an accidental ' + 'early return statement.',
+      );
+
+      return children;
     }
   }
   WithHooks.displayName = render.displayName || render.name;
