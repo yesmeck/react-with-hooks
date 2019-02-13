@@ -18,7 +18,8 @@ $ npm i react-with-hooks --save
 You can use `react-with-hooks` as a polyfill; in this case, when you later transition to native React Hooks you will only need to replace `'react-with-hooks/polyfill'` with `'react'` in your import statments:
 
 ```javascript
-import React, { useState, useEffect } from 'react-with-hooks/polyfill';
+import 'react-with-hooks/polyfill'; // import the polyfill in the entry of your application
+import React, { useState, useEffect } from 'react';
 
 const Counter = () => {
   const [ count, setCount ] = useState(0);
