@@ -71,7 +71,7 @@ const Counter = withHooks(() => {
   - [useMemo](https://reactjs.org/docs/hooks-reference.html#usememo)
   - [useRef](https://reactjs.org/docs/hooks-reference.html#useref)
   - [useImperativeHandle](https://reactjs.org/docs/hooks-reference.html#useimperativehandle)
-  - ⚠️ useLayoutEffect - Not fully implemented, works same as `useEffect` currently.
+  - [useLayoutEffect](https://reactjs.org/docs/hooks-reference.html#uselayouteffect)
 
 
 ## License
