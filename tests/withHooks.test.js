@@ -1,151 +1,192 @@
-import React, { createContext, forwardRef, memo } from 'react';
-import { mount } from 'enzyme';
-import withHooks, {
-  useState,
-  useLayoutEffect,
-  useContext,
-  useReducer,
-  useCallback,
-  useMemo,
-  useRef,
-  useImperativeHandle,
-} from '../src';
 
-class Logger {
-  constructor() {
-    this.logs = [];
-  }
+jest.mock('../src/scheduleCallback');
 
-  flush() {
-    const logs = this.logs;
-    this.logs = [];
-    return logs;
-  }
-
-  log(msg) {
-    this.logs.push(msg);
-  }
-}
+let React;
+let ReactNoop;
+let scheduleCallback;
+let useState;
+let useReducer;
+let useEffect;
+let useLayoutEffect;
+let useCallback;
+let useMemo;
+let useRef;
+let useContext;
+let useImperativeHandle;
+let forwardRef;
+let createContext;
+let memo;
+let act;
 
 describe('hooks', () => {
-  let logger;
+  function span(prop) {
+    return { type: 'span', hidden: false, children: [], prop };
+  }
 
   function Text(props) {
-    logger.log(props.text);
-    return <span>{props.text}</span>;
+    ReactNoop.yield(props.text);
+    return <span prop={props.text} />;
   }
 
   beforeEach(() => {
-    logger = new Logger();
+    jest.resetModules();
+
+    require('../src/polyfill');
+    React = require('react');
+    ReactNoop = require('../vendors/react-noop-renderer');
+    scheduleCallback = require('../src/scheduleCallback').default;
+    const nativeFlushPassiveEffects = ReactNoop.flushPassiveEffects;
+    ReactNoop.flushPassiveEffects = () => {
+      scheduleCallback.flush();
+      return nativeFlushPassiveEffects();
+    };
+    useState = React.useState;
+    useReducer = React.useReducer;
+    useEffect = React.useEffect;
+    useLayoutEffect = React.useLayoutEffect;
+    useCallback = React.useCallback;
+    useMemo = React.useMemo;
+    useRef = React.useRef;
+    useContext = React.useContext;
+    useImperativeHandle = React.useImperativeHandle;
+    forwardRef = React.forwardRef;
+    createContext = React.createContext;
+    memo = React.memo;
+    act = ReactNoop.act;
   });
 
   describe('useState', () => {
     it('simple mount and update', () => {
-      let Counter = withHooks((props, ref) => {
+      function Counter(props, ref) {
         const [count, updateCount] = useState(0);
         useImperativeHandle(ref, () => ({ updateCount }));
         return <Text text={'Count: ' + count} />;
-      });
+      }
       Counter = forwardRef(Counter);
       const counter = React.createRef(null);
-      const App = () => <Counter ref={counter} />;
-      const wrapper = mount(<App />);
-      expect(wrapper.text()).toEqual('Count: 0');
+      ReactNoop.render(<Counter ref={counter} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
 
-      counter.current.updateCount(1);
-      expect(wrapper.text()).toEqual('Count: 1');
+      act(() => counter.current.updateCount(1));
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
 
-      counter.current.updateCount(count => count + 10);
-      expect(wrapper.text()).toEqual('Count: 11');
+      act(() => counter.current.updateCount(count => count + 10));
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 11')]);
     });
 
     it('lazy state initializer', () => {
-      let Counter = withHooks((props, ref) => {
+      function Counter(props, ref) {
         const [count, updateCount] = useState(() => {
-          logger.log('getInitialState');
+          ReactNoop.yield('getInitialState');
           return props.initialState;
         });
         useImperativeHandle(ref, () => ({ updateCount }));
         return <Text text={'Count: ' + count} />;
-      });
+      }
       Counter = forwardRef(Counter);
       const counter = React.createRef(null);
-      const App = () => <Counter initialState={42} ref={counter} />;
-      const wrapper = mount(<App />);
-      expect(logger.flush()).toEqual(['getInitialState', 'Count: 42']);
-      expect(wrapper.text()).toEqual('Count: 42');
+      ReactNoop.render(<Counter initialState={42} ref={counter} />);
+      expect(ReactNoop.flush()).toEqual(['getInitialState', 'Count: 42']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 42')]);
 
-      counter.current.updateCount(7);
-      expect(logger.flush()).toEqual(['Count: 7']);
-      expect(wrapper.text()).toEqual('Count: 7');
+      act(() => counter.current.updateCount(7));
+      expect(ReactNoop.flush()).toEqual(['Count: 7']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 7')]);
     });
 
     it('multiple states', () => {
-      let Counter = withHooks((props, ref) => {
+      function Counter(props, ref) {
         const [count, updateCount] = useState(0);
         const [label, updateLabel] = useState('Count');
         useImperativeHandle(ref, () => ({ updateCount, updateLabel }));
         return <Text text={label + ': ' + count} />;
-      });
+      }
       Counter = forwardRef(Counter);
       const counter = React.createRef(null);
-      const App = () => <Counter ref={counter} />;
-      const wrapper = mount(<App />);
-      expect(wrapper.text()).toEqual('Count: 0');
+      ReactNoop.render(<Counter ref={counter} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
 
-      counter.current.updateCount(7);
-      expect(wrapper.text()).toEqual('Count: 7');
+      act(() => counter.current.updateCount(7));
+      expect(ReactNoop.flush()).toEqual(['Count: 7']);
 
-      counter.current.updateLabel('Total');
-      expect(wrapper.text()).toEqual('Total: 7');
+      act(() => counter.current.updateLabel('Total'));
+      expect(ReactNoop.flush()).toEqual(['Total: 7']);
     });
 
     it('returns the same updater function every time', () => {
       let updaters = [];
-      const Counter = withHooks(() => {
+      function Counter() {
         const [count, updateCount] = useState(0);
         updaters.push(updateCount);
         return <Text text={'Count: ' + count} />;
-      });
-      const wrapper = mount(<Counter />);
-      expect(wrapper.text()).toEqual('Count: 0');
+      }
+      ReactNoop.render(<Counter />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
 
-      updaters[0](1);
-      expect(wrapper.text()).toEqual('Count: 1');
+      act(() => updaters[0](1));
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
 
-      updaters[0](count => count + 10);
-      expect(wrapper.text()).toEqual('Count: 11');
+      act(() => updaters[0](count => count + 10));
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 11')]);
 
       expect(updaters).toEqual([updaters[0], updaters[0], updaters[0]]);
     });
 
-    // enzyme don't support memo yet
-    it.skip('works with memo', () => {
+    it('warns on set after unmount', () => {
       let _updateCount;
-      let Counter = withHooks(props => {
+      function Counter(props, ref) {
+        const [, updateCount] = useState(0);
+        _updateCount = updateCount;
+        return null;
+      }
+
+      ReactNoop.render(<Counter />);
+      ReactNoop.flush();
+      ReactNoop.render(null);
+      ReactNoop.flush();
+      expect(() => act(() => _updateCount(1))).toWarnDev(
+        "Warning: Can't perform a React state update on an unmounted " +
+          'component. This is a no-op, but it indicates a memory leak in your ' +
+          'application. To fix, cancel all subscriptions and asynchronous ' +
+          'tasks in the componentWillUnmount method.\n' +
+          '    in Counter (created by WithHooks(Counter))\n' +
+          '    in WithHooks(Counter)',
+      );
+    });
+
+    it('works with memo', () => {
+      let _updateCount;
+      function Counter(props) {
         const [count, updateCount] = useState(0);
         _updateCount = updateCount;
         return <Text text={'Count: ' + count} />;
-      });
+      }
       Counter = memo(Counter);
 
-      const wrapper = mount(<Counter />);
-      expect(logger.flush()).toEqual(['Count: 0']);
-      expect(wrapper.text()).toEqual('Count: 0');
+      ReactNoop.render(<Counter />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
 
-      wrapper.setProps({});
-      expect(logger.flush()).toEqual([]);
-      expect(renderNumbers).toEqual(0);
+      ReactNoop.render(<Counter />);
+      expect(ReactNoop.flush()).toEqual([]);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
 
-      _updateCount(1);
-      expect(logger.flush()).toEqual(['Count: 1']);
-      expect(wrapper.text()).toEqual('Count: 1');
+      act(() => _updateCount(1));
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
     });
   });
 
   describe('updates during the render phase', () => {
     it('restarts the render function and applies the new updates on top', () => {
-      const ScrollView = withHooks(({ row: newRow }) => {
+      function ScrollView({ row: newRow }) {
         let [isScrollingDown, setIsScrollingDown] = useState(false);
         let [row, setRow] = useState(null);
 
@@ -156,56 +197,62 @@ describe('hooks', () => {
         }
 
         return <Text text={`Scrolling down: ${isScrollingDown}`} />;
-      });
+      }
 
-      const wrapper = mount(<ScrollView row={1} />);
-      expect(wrapper.text()).toEqual('Scrolling down: false');
+      ReactNoop.render(<ScrollView row={1} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Scrolling down: false')]);
 
-      wrapper.setProps({ row: 5 });
-      expect(wrapper.text()).toEqual('Scrolling down: true');
+      ReactNoop.render(<ScrollView row={5} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Scrolling down: true')]);
 
-      wrapper.setProps({ row: 5 });
-      expect(wrapper.text()).toEqual('Scrolling down: true');
+      ReactNoop.render(<ScrollView row={5} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Scrolling down: true')]);
 
-      wrapper.setProps({ row: 10 });
-      expect(wrapper.text()).toEqual('Scrolling down: true');
+      ReactNoop.render(<ScrollView row={10} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Scrolling down: true')]);
 
-      wrapper.setProps({ row: 2 });
-      expect(wrapper.text()).toEqual('Scrolling down: false');
+      ReactNoop.render(<ScrollView row={2} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Scrolling down: false')]);
 
-      wrapper.setProps({ row: 2 });
-      expect(wrapper.text()).toEqual('Scrolling down: false');
+      ReactNoop.render(<ScrollView row={2} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Scrolling down: false')]);
     });
 
     it('keeps restarting until there are no more new updates', () => {
-      const Counter = withHooks(({ row: newRow }) => {
+      function Counter({ row: newRow }) {
         let [count, setCount] = useState(0);
         if (count < 3) {
           setCount(count + 1);
         }
-        logger.log('Render: ' + count);
+        ReactNoop.yield('Render: ' + count);
         return <Text text={count} />;
-      });
+      }
 
-      const wrapper = mount(<Counter />);
-      expect(logger.flush()).toEqual(['Render: 0', 'Render: 1', 'Render: 2', 'Render: 3', 3]);
-      expect(wrapper.text()).toEqual('3');
+      ReactNoop.render(<Counter />);
+      expect(ReactNoop.flush()).toEqual(['Render: 0', 'Render: 1', 'Render: 2', 'Render: 3', 3]);
+      expect(ReactNoop.getChildren()).toEqual([span(3)]);
     });
 
     it('updates multiple times within same render function', () => {
-      const Counter = withHooks(({ row: newRow }) => {
+      function Counter({ row: newRow }) {
         let [count, setCount] = useState(0);
         if (count < 12) {
           setCount(c => c + 1);
           setCount(c => c + 1);
           setCount(c => c + 1);
         }
-        logger.log('Render: ' + count);
+        ReactNoop.yield('Render: ' + count);
         return <Text text={count} />;
-      });
+      }
 
-      const wrapper = mount(<Counter />);
-      expect(logger.flush()).toEqual([
+      ReactNoop.render(<Counter />);
+      expect(ReactNoop.flush()).toEqual([
         // Should increase by three each time
         'Render: 0',
         'Render: 3',
@@ -214,25 +261,38 @@ describe('hooks', () => {
         'Render: 12',
         12,
       ]);
-      expect(wrapper.text()).toEqual('12');
+      expect(ReactNoop.getChildren()).toEqual([span(12)]);
+    });
+
+    it('throws after too many iterations', () => {
+      function Counter({ row: newRow }) {
+        let [count, setCount] = useState(0);
+        setCount(count + 1);
+        ReactNoop.yield('Render: ' + count);
+        return <Text text={count} />;
+      }
+      ReactNoop.render(<Counter />);
+      expect(() => ReactNoop.flush()).toThrow(
+        'Too many re-renders. React limits the number of renders to prevent ' + 'an infinite loop.',
+      );
     });
 
     it('works with useReducer', () => {
       function reducer(state, action) {
         return action === 'increment' ? state + 1 : state;
       }
-      const Counter = withHooks(({ row: newRow }) => {
+      function Counter({ row: newRow }) {
         let [count, dispatch] = useReducer(reducer, 0);
         if (count < 3) {
           dispatch('increment');
         }
-        logger.log('Render: ' + count);
+        ReactNoop.yield('Render: ' + count);
         return <Text text={count} />;
-      });
+      }
 
-      const wrapper = mount(<Counter />);
-      expect(logger.flush()).toEqual(['Render: 0', 'Render: 1', 'Render: 2', 'Render: 3', 3]);
-      expect(wrapper.text()).toEqual('3');
+      ReactNoop.render(<Counter />);
+      expect(ReactNoop.flush()).toEqual(['Render: 0', 'Render: 1', 'Render: 2', 'Render: 3', 3]);
+      expect(ReactNoop.getChildren()).toEqual([span(3)]);
     });
 
     it('uses reducer passed at time of render, not time of dispatch', () => {
@@ -256,7 +316,7 @@ describe('hooks', () => {
         }
       }
 
-      let Counter = withHooks(({ row: newRow }, ref) => {
+      function Counter({ row: newRow }, ref) {
         let [reducer, setReducer] = useState(() => reducerA);
         let [count, dispatch] = useReducer(reducer, 0);
         useImperativeHandle(ref, () => ({ dispatch }));
@@ -269,14 +329,13 @@ describe('hooks', () => {
             setReducer(() => reducerA);
           }
         }
-        logger.log('Render: ' + count);
+        ReactNoop.yield('Render: ' + count);
         return <Text text={count} />;
-      });
+      }
       Counter = forwardRef(Counter);
       const counter = React.createRef(null);
-      const App = () => <Counter ref={counter} />;
-      const wrapper = mount(<App />);
-      expect(logger.flush()).toEqual([
+      ReactNoop.render(<Counter ref={counter} />);
+      expect(ReactNoop.flush()).toEqual([
         // The count should increase by alternating amounts of 10 and 1
         // until we reach 21.
         'Render: 0',
@@ -285,14 +344,14 @@ describe('hooks', () => {
         'Render: 21',
         21,
       ]);
-      expect(wrapper.text()).toEqual('21');
+      expect(ReactNoop.getChildren()).toEqual([span(21)]);
 
       // Test that it works on update, too. This time the log is a bit different
       // because we started with reducerB instead of reducerA.
       counter.current.dispatch('reset');
-      wrapper.setProps({});
-      expect(logger.flush()).toEqual(['Render: 0', 'Render: 1', 'Render: 11', 'Render: 12', 'Render: 22', 22]);
-      expect(wrapper.text()).toEqual('22');
+      ReactNoop.render(<Counter ref={counter} />);
+      expect(ReactNoop.flush()).toEqual(['Render: 0', 'Render: 1', 'Render: 11', 'Render: 12', 'Render: 22', 22]);
+      expect(ReactNoop.getChildren()).toEqual([span(22)]);
     });
   });
 
@@ -312,34 +371,37 @@ describe('hooks', () => {
         }
       }
 
-      let Counter = withHooks((props, ref) => {
+      function Counter(props, ref) {
         const [count, dispatch] = useReducer(reducer, 0);
-        useImperativeHandle(ref, () => ({ dispatch }));
+        useImperativeHandle(ref, () => ({dispatch}));
         return <Text text={'Count: ' + count} />;
-      });
+      }
       Counter = forwardRef(Counter);
       const counter = React.createRef(null);
-      const App = () => <Counter ref={counter} />;
-      const wrapper = mount(<App />);
-      expect(wrapper.text()).toEqual('Count: 0');
+      ReactNoop.render(<Counter ref={counter} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
 
-      counter.current.dispatch(INCREMENT);
-      expect(wrapper.text()).toEqual('Count: 1');
+      act(() => counter.current.dispatch(INCREMENT));
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
 
-      counter.current.dispatch(DECREMENT);
-      counter.current.dispatch(DECREMENT);
-      counter.current.dispatch(DECREMENT);
-      expect(wrapper.text()).toEqual('Count: -2');
+      act(() => {
+        counter.current.dispatch(DECREMENT);
+        counter.current.dispatch(DECREMENT);
+        counter.current.dispatch(DECREMENT);
+      });
+
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: -2')]);
     });
 
-    it('accepts an initial action', () => {
+    it('lazy init', () => {
       const INCREMENT = 'INCREMENT';
       const DECREMENT = 'DECREMENT';
 
       function reducer(state, action) {
         switch (action) {
-          case 'INITIALIZE':
-            return 10;
           case 'INCREMENT':
             return state + 1;
           case 'DECREMENT':
@@ -349,244 +411,633 @@ describe('hooks', () => {
         }
       }
 
-      let Counter = withHooks((props, ref) => {
+      function Counter(props, ref) {
         const [count, dispatch] = useReducer(reducer, props, p => {
-          logger.log('Init');
+          ReactNoop.yield('Init');
           return p.initialCount;
         });
-        useImperativeHandle(ref, () => ({ dispatch }));
+        useImperativeHandle(ref, () => ({dispatch}));
         return <Text text={'Count: ' + count} />;
-      });
+      }
       Counter = forwardRef(Counter);
       const counter = React.createRef(null);
-      const App = () => <Counter initialCount={10} ref={counter} />;
-      const wrapper = mount(<App />);
-      expect(logger.flush()).toEqual(['Init', 'Count: 10']);
-      expect(wrapper.text()).toEqual('Count: 10');
+      ReactNoop.render(<Counter initialCount={10} ref={counter} />);
+      expect(ReactNoop.flush()).toEqual(['Init', 'Count: 10']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 10')]);
 
-      counter.current.dispatch(INCREMENT);
-      expect(logger.flush()).toEqual(['Count: 11']);
-      expect(wrapper.text()).toEqual('Count: 11');
+      act(() => counter.current.dispatch(INCREMENT));
+      expect(ReactNoop.flush()).toEqual(['Count: 11']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 11')]);
 
-      counter.current.dispatch(DECREMENT);
-      counter.current.dispatch(DECREMENT);
-      counter.current.dispatch(DECREMENT);
-      expect(logger.flush()).toEqual(['Count: 10', 'Count: 9', 'Count: 8']);
-      expect(wrapper.text()).toEqual('Count: 8');
+      act(() => {
+        counter.current.dispatch(DECREMENT);
+        counter.current.dispatch(DECREMENT);
+        counter.current.dispatch(DECREMENT);
+      });
+
+      expect(ReactNoop.flush()).toEqual(['Count: 8']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 8')]);
+    });
+
+    // Regression test for https://github.com/facebook/react/issues/14360
+    it.skip('handles dispatches with mixed priorities', () => {
+      const INCREMENT = 'INCREMENT';
+
+      function reducer(state, action) {
+        return action === INCREMENT ? state + 1 : state;
+      }
+
+      function Counter(props, ref) {
+        const [count, dispatch] = useReducer(reducer, 0);
+        useImperativeHandle(ref, () => ({dispatch}));
+        return <Text text={'Count: ' + count} />;
+      }
+
+      Counter = forwardRef(Counter);
+      const counter = React.createRef(null);
+      ReactNoop.render(<Counter ref={counter} />);
+
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+
+      act(() => {
+        counter.current.dispatch(INCREMENT);
+        counter.current.dispatch(INCREMENT);
+        counter.current.dispatch(INCREMENT);
+      });
+
+      ReactNoop.flushSync(() => {
+        counter.current.dispatch(INCREMENT);
+      });
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 4')]);
     });
   });
 
-  describe('useLayoutEffect', () => {
+  describe('useEffect', () => {
     it('simple mount and update', () => {
-      const Counter = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log(`Did commit [${props.count}]`);
+      function Counter(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Did commit [${props.count}]`);
         });
         return <Text text={'Count: ' + props.count} />;
-      });
-      const wrapper = mount(<Counter count={0} />);
-      expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Did commit [0]']);
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did commit [0]']);
 
-      wrapper.setProps({ count: 1 });
-      expect(wrapper.text()).toEqual('Count: 1');
-      expect(logger.flush()).toEqual(['Count: 1', 'Did commit [1]']);
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      // Effects are deferred until after the commit
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did commit [1]']);
+    });
+
+    it.skip('flushes passive effects even with sibling deletions', () => {
+      function LayoutEffect(props) {
+        useLayoutEffect(() => {
+          ReactNoop.yield(`Layout effect`);
+        });
+        return <Text text="Layout" />;
+      }
+      function PassiveEffect(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Passive effect`);
+        }, []);
+        return <Text text="Passive" />;
+      }
+      let passive = <PassiveEffect key="p" />;
+      ReactNoop.render([<LayoutEffect key="l" />, passive]);
+      expect(ReactNoop.flush()).toEqual(['Layout', 'Passive', 'Layout effect']);
+      expect(ReactNoop.getChildren()).toEqual([span('Layout'), span('Passive')]);
+
+      // Destroying the first child shouldn't prevent the passive effect from
+      // being executed
+      ReactNoop.render([passive]);
+      expect(ReactNoop.flush()).toEqual(['Passive effect']);
+      expect(ReactNoop.getChildren()).toEqual([span('Passive')]);
+
+      // (No effects are left to flush.)
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(null);
+    });
+
+    it.skip('flushes passive effects even if siblings schedule an update', () => {
+      function PassiveEffect(props) {
+        useEffect(() => {
+          ReactNoop.yield('Passive effect');
+        });
+        return <Text text="Passive" />;
+      }
+      function LayoutEffect(props) {
+        let [count, setCount] = useState(0);
+        useLayoutEffect(() => {
+          // Scheduling work shouldn't interfere with the queued passive effect
+          if (count === 0) {
+            setCount(1);
+          }
+          ReactNoop.yield('Layout effect ' + count);
+        });
+        return <Text text="Layout" />;
+      }
+
+      ReactNoop.render([<PassiveEffect key="p" />, <LayoutEffect key="l" />]);
+
+      act(() => {
+        expect(ReactNoop.flush()).toEqual([
+          'Passive',
+          'Layout',
+          'Layout effect 0',
+          'Passive effect',
+          'Layout',
+          'Layout effect 1',
+        ]);
+      });
+
+      expect(ReactNoop.getChildren()).toEqual([span('Passive'), span('Layout')]);
+    });
+
+    it.skip('flushes passive effects even if siblings schedule a new root', () => {
+      function PassiveEffect(props) {
+        useEffect(() => {
+          ReactNoop.yield('Passive effect');
+        }, []);
+        return <Text text="Passive" />;
+      }
+      function LayoutEffect(props) {
+        useLayoutEffect(() => {
+          ReactNoop.yield('Layout effect');
+          // Scheduling work shouldn't interfere with the queued passive effect
+          ReactNoop.renderToRootWithID(<Text text="New Root" />, 'root2');
+        });
+        return <Text text="Layout" />;
+      }
+      ReactNoop.render([<PassiveEffect key="p" />, <LayoutEffect key="l" />]);
+      expect(ReactNoop.flush()).toEqual(['Passive', 'Layout', 'Layout effect', 'Passive effect', 'New Root']);
+      expect(ReactNoop.getChildren()).toEqual([span('Passive'), span('Layout')]);
+    });
+
+    it(
+      'flushes effects serially by flushing old effects before flushing ' + "new ones, if they haven't already fired",
+      () => {
+        function getCommittedText() {
+          const children = ReactNoop.getChildren();
+          if (children === null) {
+            return null;
+          }
+          return children[0].prop;
+        }
+
+        function Counter(props) {
+          useEffect(() => {
+            ReactNoop.yield(`Committed state when effect was fired: ${getCommittedText()}`);
+          });
+          return <Text text={props.count} />;
+        }
+        ReactNoop.render(<Counter count={0} />);
+        expect(ReactNoop.flush()).toEqual([0]);
+        expect(ReactNoop.getChildren()).toEqual([span(0)]);
+
+        // Before the effects have a chance to flush, schedule another update
+        ReactNoop.render(<Counter count={1} />);
+        expect(ReactNoop.flush()).toEqual([
+          // The previous effect flushes before the reconciliation
+          'Committed state when effect was fired: 0',
+          1,
+        ]);
+        expect(ReactNoop.getChildren()).toEqual([span(1)]);
+
+        ReactNoop.flushPassiveEffects();
+        expect(ReactNoop.clearYields()).toEqual(['Committed state when effect was fired: 1']);
+      },
+    );
+
+    it('updates have async priority', () => {
+      function Counter(props) {
+        const [count, updateCount] = useState('(empty)');
+        useEffect(() => {
+          ReactNoop.yield(`Schedule update [${props.count}]`);
+          updateCount(props.count);
+        }, [props.count]);
+        return <Text text={'Count: ' + count} />;
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: (empty)']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: (empty)')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Schedule update [0]']);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Schedule update [1]']);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+    });
+
+    it.skip('updates have async priority even if effects are flushed early', () => {
+      function Counter(props) {
+        const [count, updateCount] = useState('(empty)');
+        useEffect(() => {
+          ReactNoop.yield(`Schedule update [${props.count}]`);
+          updateCount(props.count);
+        }, [props.count]);
+        return <Text text={'Count: ' + count} />;
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: (empty)']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: (empty)')]);
+
+      // Rendering again should flush the previous commit's effects
+      ReactNoop.render(<Counter count={1} />);
+      ReactNoop.flushThrough(['Schedule update [0]', 'Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: (empty)')]);
+
+      ReactNoop.batchedUpdates(() => {
+        expect(ReactNoop.flush()).toEqual([]);
+      });
+
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.flush()).toEqual(['Schedule update [1]', 'Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+    });
+
+    it.skip('flushes serial effects before enqueueing work', () => {
+      let _updateCount;
+      function Counter(props) {
+        const [count, updateCount] = useState(0);
+        _updateCount = updateCount;
+        useEffect(() => {
+          ReactNoop.yield(`Will set count to 1`);
+          updateCount(1);
+        }, []);
+        return <Text text={'Count: ' + count} />;
+      }
+
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+
+      // Enqueuing this update forces the passive effect to be flushed --
+      // updateCount(1) happens first, so 2 wins.
+      act(() => _updateCount(2));
+      expect(ReactNoop.flush()).toEqual(['Will set count to 1', 'Count: 2']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 2')]);
+    });
+
+    it.skip('flushes serial effects before enqueueing work (with tracing)', () => {
+      const onInteractionScheduledWorkCompleted = jest.fn();
+      const onWorkCanceled = jest.fn();
+      SchedulerTracing.unstable_subscribe({
+        onInteractionScheduledWorkCompleted,
+        onInteractionTraced: jest.fn(),
+        onWorkCanceled,
+        onWorkScheduled: jest.fn(),
+        onWorkStarted: jest.fn(),
+        onWorkStopped: jest.fn(),
+      });
+
+      let _updateCount;
+      function Counter(props) {
+        const [count, updateCount] = useState(0);
+        _updateCount = updateCount;
+        useEffect(() => {
+          expect(SchedulerTracing.unstable_getCurrent()).toMatchInteractions([tracingEvent]);
+          ReactNoop.yield(`Will set count to 1`);
+          updateCount(1);
+        }, []);
+        return <Text text={'Count: ' + count} />;
+      }
+
+      const tracingEvent = { id: 0, name: 'hello', timestamp: 0 };
+      SchedulerTracing.unstable_trace(tracingEvent.name, tracingEvent.timestamp, () => {
+        ReactNoop.render(<Counter count={0} />);
+      });
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+
+      expect(onInteractionScheduledWorkCompleted).toHaveBeenCalledTimes(0);
+
+      // Enqueuing this update forces the passive effect to be flushed --
+      // updateCount(1) happens first, so 2 wins.
+      act(() => _updateCount(2));
+      expect(ReactNoop.flush()).toEqual(['Will set count to 1', 'Count: 2']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 2')]);
+
+      expect(onInteractionScheduledWorkCompleted).toHaveBeenCalledTimes(1);
+      expect(onWorkCanceled).toHaveBeenCalledTimes(0);
+    });
+
+    it.skip('in sync mode, useEffect is deferred and updates finish synchronously ' + '(in a single batch)', () => {
+      function Counter(props) {
+        const [count, updateCount] = useState('(empty)');
+        useEffect(() => {
+          // Update multiple times. These should all be batched together in
+          // a single render.
+          updateCount(props.count);
+          updateCount(props.count);
+          updateCount(props.count);
+          updateCount(props.count);
+          updateCount(props.count);
+          updateCount(props.count);
+        }, [props.count]);
+        return <Text text={'Count: ' + count} />;
+      }
+      ReactNoop.renderLegacySyncRoot(<Counter count={0} />);
+      // Even in sync mode, effects are deferred until after paint
+      expect(ReactNoop.flush()).toEqual(['Count: (empty)']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: (empty)')]);
+      // Now fire the effects
+      ReactNoop.flushPassiveEffects();
+      // There were multiple updates, but there should only be a
+      // single render
+      expect(ReactNoop.clearYields()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+    });
+
+    it.skip('flushSync is not allowed', () => {
+      function Counter(props) {
+        const [count, updateCount] = useState('(empty)');
+        useEffect(() => {
+          ReactNoop.yield(`Schedule update [${props.count}]`);
+          ReactNoop.flushSync(() => {
+            updateCount(props.count);
+          });
+        }, [props.count]);
+        return <Text text={'Count: ' + count} />;
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: (empty)']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: (empty)')]);
+
+      expect(() => {
+        ReactNoop.flushPassiveEffects();
+      }).toThrow('flushSync was called from inside a lifecycle method');
     });
 
     it('unmounts previous effect', () => {
-      const Counter = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log(`Did create [${props.count}]`);
+      function Counter(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Did create [${props.count}]`);
           return () => {
-            logger.log(`Did destroy [${props.count}]`);
+            ReactNoop.yield(`Did destroy [${props.count}]`);
           };
         });
         return <Text text={'Count: ' + props.count} />;
-      });
-      const wrapper = mount(<Counter count={0} />);
-      expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Did create [0]']);
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did create [0]']);
 
-      wrapper.setProps({ count: 1 });
-      expect(wrapper.text()).toEqual('Count: 1');
-      expect(logger.flush()).toEqual(['Count: 1', 'Did destroy [0]', 'Did create [1]']);
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did destroy [0]', 'Did create [1]']);
     });
 
     it('unmounts on deletion', () => {
-      const Counter = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log(`Did create [${props.count}]`);
+      function Counter(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Did create [${props.count}]`);
           return () => {
-            logger.log(`Did destroy [${props.count}]`);
+            ReactNoop.yield(`Did destroy [${props.count}]`);
           };
         });
         return <Text text={'Count: ' + props.count} />;
-      });
-      const wrapper = mount(<Counter count={0} />);
-      expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Did create [0]']);
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did create [0]']);
 
-      wrapper.unmount();
-      expect(logger.flush()).toEqual(['Did destroy [0]']);
+      ReactNoop.render(null);
+      expect(ReactNoop.flush()).toEqual(['Did destroy [0]']);
+      expect(ReactNoop.getChildren()).toEqual([]);
+    });
+
+    it('unmounts on deletion after skipped effect', () => {
+      function Counter(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Did create [${props.count}]`);
+          return () => {
+            ReactNoop.yield(`Did destroy [${props.count}]`);
+          };
+        }, []);
+        return <Text text={'Count: ' + props.count} />;
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did create [0]']);
+
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(null);
+
+      ReactNoop.render(null);
+      expect(ReactNoop.flush()).toEqual(['Did destroy [0]']);
+      expect(ReactNoop.getChildren()).toEqual([]);
     });
 
     it('always fires effects if no dependencies are provided', () => {
-      const Counter = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log(`Did create`);
-          return () => {
-            logger.log(`Did destroy`);
-          };
-        });
+      function effect() {
+        ReactNoop.yield(`Did create`);
+        return () => {
+          ReactNoop.yield(`Did destroy`);
+        };
+      }
+      function Counter(props) {
+        useEffect(effect);
         return <Text text={'Count: ' + props.count} />;
-      });
-      const wrapper = mount(<Counter count={0} />);
-      expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Did create']);
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did create']);
 
-      wrapper.setProps({ count: 1 });
-      expect(wrapper.text()).toEqual('Count: 1');
-      expect(logger.flush()).toEqual(['Count: 1', 'Did destroy', 'Did create']);
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did destroy', 'Did create']);
 
-      wrapper.unmount();
-      expect(logger.flush()).toEqual(['Did destroy']);
+      ReactNoop.render(null);
+      expect(ReactNoop.flush()).toEqual(['Did destroy']);
+      expect(ReactNoop.getChildren()).toEqual([]);
     });
 
     it('skips effect if inputs have not changed', () => {
-      const Counter = withHooks(props => {
+      function Counter(props) {
         const text = `${props.label}: ${props.count}`;
-        useLayoutEffect(() => {
-          logger.log(`Did create [${text}]`);
+        useEffect(() => {
+          ReactNoop.yield(`Did create [${text}]`);
           return () => {
-            logger.log(`Did destroy [${text}]`);
+            ReactNoop.yield(`Did destroy [${text}]`);
           };
         }, [props.label, props.count]);
         return <Text text={text} />;
-      });
-      const wrapper = mount(<Counter label="Count" count={0} />);
-      expect(logger.flush()).toEqual(['Count: 0', 'Did create [Count: 0]']);
-      expect(wrapper.text()).toEqual('Count: 0');
+      }
+      ReactNoop.render(<Counter label="Count" count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did create [Count: 0]']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
 
-      wrapper.setProps({ count: 1 });
+      ReactNoop.render(<Counter label="Count" count={1} />);
       // Count changed
-      expect(wrapper.text()).toEqual('Count: 1');
-      expect(logger.flush()).toEqual(['Count: 1', 'Did destroy [Count: 0]', 'Did create [Count: 1]']);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did destroy [Count: 0]', 'Did create [Count: 1]']);
 
-      wrapper.setProps({ count: 1 });
+      ReactNoop.render(<Counter label="Count" count={1} />);
       // Nothing changed, so no effect should have fired
-      expect(logger.flush()).toEqual(['Count: 1']);
-      expect(wrapper.text()).toEqual('Count: 1');
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(null);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
 
-      wrapper.setProps({ label: 'Total' });
+      ReactNoop.render(<Counter label="Total" count={1} />);
       // Label changed
-      expect(wrapper.text()).toEqual('Total: 1');
-      expect(logger.flush()).toEqual(['Total: 1', 'Did destroy [Count: 1]', 'Did create [Total: 1]']);
+      expect(ReactNoop.flush()).toEqual(['Total: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Total: 1')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did destroy [Count: 1]', 'Did create [Total: 1]']);
     });
 
     it('multiple effects', () => {
-      const Counter = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log(`Did commit 1 [${props.count}]`);
+      function Counter(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Did commit 1 [${props.count}]`);
         });
-        useLayoutEffect(() => {
-          logger.log(`Did commit 2 [${props.count}]`);
+        useEffect(() => {
+          ReactNoop.yield(`Did commit 2 [${props.count}]`);
         });
         return <Text text={'Count: ' + props.count} />;
-      });
-      const wrapper = mount(<Counter count={0} />);
-      expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Did commit 1 [0]', 'Did commit 2 [0]']);
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did commit 1 [0]', 'Did commit 2 [0]']);
 
-      wrapper.setProps({ count: 1 });
-      expect(wrapper.text()).toEqual('Count: 1');
-      expect(logger.flush()).toEqual(['Count: 1', 'Did commit 1 [1]', 'Did commit 2 [1]']);
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Did commit 1 [1]', 'Did commit 2 [1]']);
     });
 
     it('unmounts all previous effects before creating any new ones', () => {
-      const Counter = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log(`Mount A [${props.count}]`);
+      function Counter(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Mount A [${props.count}]`);
           return () => {
-            logger.log(`Unmount A [${props.count}]`);
+            ReactNoop.yield(`Unmount A [${props.count}]`);
           };
         });
-        useLayoutEffect(() => {
-          logger.log(`Mount B [${props.count}]`);
+        useEffect(() => {
+          ReactNoop.yield(`Mount B [${props.count}]`);
           return () => {
-            logger.log(`Unmount B [${props.count}]`);
+            ReactNoop.yield(`Unmount B [${props.count}]`);
           };
         });
         return <Text text={'Count: ' + props.count} />;
-      });
-      const wrapper = mount(<Counter count={0} />);
-      expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Mount A [0]', 'Mount B [0]']);
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Mount A [0]', 'Mount B [0]']);
 
-      wrapper.setProps({ count: 1 });
-      expect(wrapper.text()).toEqual('Count: 1');
-      expect(logger.flush()).toEqual(['Count: 1', 'Unmount A [0]', 'Unmount B [0]', 'Mount A [1]', 'Mount B [1]']);
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Unmount A [0]', 'Unmount B [0]', 'Mount A [1]', 'Mount B [1]']);
     });
 
     it.skip('handles errors on mount', () => {
-      const Counter = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log(`Mount A [${props.count}]`);
+      function Counter(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Mount A [${props.count}]`);
           return () => {
-            logger.log(`Unmount A [${props.count}]`);
+            ReactNoop.yield(`Unmount A [${props.count}]`);
           };
         });
-        useLayoutEffect(() => {
-          logger.log('Oops!');
+        useEffect(() => {
+          ReactNoop.yield('Oops!');
           throw new Error('Oops!');
           // eslint-disable-next-line no-unreachable
-          logger.log(`Mount B [${props.count}]`);
+          ReactNoop.yield(`Mount B [${props.count}]`);
           return () => {
-            logger.log(`Unmount B [${props.count}]`);
+            ReactNoop.yield(`Unmount B [${props.count}]`);
           };
         });
         return <Text text={'Count: ' + props.count} />;
-      });
-      expect(() => {
-        mount(<Counter count={0} />);
-      }).toThrow('Oops');
-      expect(logger.flush()).toEqual([
-        'Count: 0',
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      expect(() => ReactNoop.flushPassiveEffects()).toThrow('Oops');
+      expect(ReactNoop.clearYields()).toEqual([
         'Mount A [0]',
         'Oops!',
         // Clean up effect A. There's no effect B to clean-up, because it
         // never mounted.
         'Unmount A [0]',
       ]);
+      expect(ReactNoop.getChildren()).toEqual([]);
     });
 
     it.skip('handles errors on update', () => {
-      const Counter = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log(`Mount A [${props.count}]`);
+      function Counter(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Mount A [${props.count}]`);
           return () => {
-            logger.log(`Unmount A [${props.count}]`);
+            ReactNoop.yield(`Unmount A [${props.count}]`);
           };
         });
-        useLayoutEffect(() => {
+        useEffect(() => {
           if (props.count === 1) {
-            logger.log('Oops!');
+            ReactNoop.yield('Oops!');
             throw new Error('Oops!');
           }
-          logger.log(`Mount B [${props.count}]`);
+          ReactNoop.yield(`Mount B [${props.count}]`);
           return () => {
-            logger.log(`Unmount B [${props.count}]`);
+            ReactNoop.yield(`Unmount B [${props.count}]`);
           };
         });
         return <Text text={'Count: ' + props.count} />;
-      });
-      const wrapper = mount(<Counter count={0} />);
-      expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Mount A [0]', 'Mount B [0]']);
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Mount A [0]', 'Mount B [0]']);
 
       // This update will trigger an errror
-      expect(() => wrapper.setProps({ count: 1 })).toThrow('Oops');
-      expect(logger.flush()).toEqual([
-        'Count: 1',
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      expect(() => ReactNoop.flushPassiveEffects()).toThrow('Oops');
+      expect(ReactNoop.clearYields()).toEqual([
         'Unmount A [0]',
         'Unmount B [0]',
         'Mount A [1]',
@@ -595,62 +1046,134 @@ describe('hooks', () => {
         // never mounted.
         'Unmount A [1]',
       ]);
+      expect(ReactNoop.getChildren()).toEqual([]);
     });
 
     it.skip('handles errors on unmount', () => {
-      const Counter = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log(`Mount A [${props.count}]`);
+      function Counter(props) {
+        useEffect(() => {
+          ReactNoop.yield(`Mount A [${props.count}]`);
           return () => {
-            logger.log('Oops!');
+            ReactNoop.yield('Oops!');
             throw new Error('Oops!');
             // eslint-disable-next-line no-unreachable
-            logger.log(`Unmount A [${props.count}]`);
+            ReactNoop.yield(`Unmount A [${props.count}]`);
           };
         });
-        useLayoutEffect(() => {
-          logger.log(`Mount B [${props.count}]`);
+        useEffect(() => {
+          ReactNoop.yield(`Mount B [${props.count}]`);
           return () => {
-            logger.log(`Unmount B [${props.count}]`);
+            ReactNoop.yield(`Unmount B [${props.count}]`);
           };
         });
         return <Text text={'Count: ' + props.count} />;
-      });
-      const wrapper = mount(<Counter count={0} />);
-      expect(wrapper.text()).toEqual('Count: 0');
-      expect(logger.flush()).toEqual(['Count: 0', 'Mount A [0]', 'Mount B [0]']);
+      }
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Mount A [0]', 'Mount B [0]']);
 
-      // This update will trigger an error
-      expect(() => wrapper.unmount()).toThrow('Oops');
-      expect(logger.flush()).toEqual([
-        'Count: 1',
+      // This update will trigger an errror
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      expect(() => ReactNoop.flushPassiveEffects()).toThrow('Oops');
+      expect(ReactNoop.clearYields()).toEqual([
         'Oops!',
         // B unmounts even though an error was thrown in the previous effect
         'Unmount B [0]',
       ]);
+      expect(ReactNoop.getChildren()).toEqual([]);
     });
 
-    it.skip('works with memo', () => {
-      let Counter = withHooks(({ count }) => {
+    it('works with memo', () => {
+      function Counter({ count }) {
         useLayoutEffect(() => {
-          logger.log('Mount: ' + count);
-          return () => logger.log('Unmount: ' + count);
+          ReactNoop.yield('Mount: ' + count);
+          return () => ReactNoop.yield('Unmount: ' + count);
         });
         return <Text text={'Count: ' + count} />;
-      });
+      }
       Counter = memo(Counter);
 
-      const wrapper = mount(<Counter count={0} />);
-      expect(logger.flush()).toEqual(['Count: 0', 'Mount: 0']);
-      expect(wrapper.text()).toEqual([span('Count: 0')]);
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 0', 'Mount: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
 
-      wrapper.setProps({ count: 1 });
-      expect(logger.flush()).toEqual(['Count: 1', 'Unmount: 0', 'Mount: 1']);
-      expect(wrapper.text()).toEqual([span('Count: 1')]);
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual(['Count: 1', 'Unmount: 0', 'Mount: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
 
-      wrapper.unmount();
-      expect(logger.flush()).toEqual(['Unmount: 1']);
-      expect(wrapper.text()).toEqual([]);
+      ReactNoop.render(null);
+      expect(ReactNoop.flush()).toEqual(['Unmount: 1']);
+      expect(ReactNoop.getChildren()).toEqual([]);
+    });
+  });
+
+  describe('useLayoutEffect', () => {
+    it('fires layout effects after the host has been mutated', () => {
+      function getCommittedText() {
+        const children = ReactNoop.getChildren();
+        if (children === null) {
+          return null;
+        }
+        return children[0].prop;
+      }
+
+      function Counter(props) {
+        useLayoutEffect(() => {
+          ReactNoop.yield(`Current: ${getCommittedText()}`);
+        });
+        return <Text text={props.count} />;
+      }
+
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual([0, 'Current: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span(0)]);
+
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual([1, 'Current: 1']);
+      expect(ReactNoop.getChildren()).toEqual([span(1)]);
+    });
+
+    it.skip('force flushes passive effects before firing new layout effects', () => {
+      let committedText = '(empty)';
+
+      function Counter(props) {
+        useLayoutEffect(() => {
+          // Normally this would go in a mutation effect, but this test
+          // intentionally omits a mutation effect.
+          committedText = props.count + '';
+
+          ReactNoop.yield(`Mount layout [current: ${committedText}]`);
+          return () => {
+            ReactNoop.yield(`Unmount layout [current: ${committedText}]`);
+          };
+        });
+        useEffect(() => {
+          ReactNoop.yield(`Mount normal [current: ${committedText}]`);
+          return () => {
+            ReactNoop.yield(`Unmount normal [current: ${committedText}]`);
+          };
+        });
+        return null;
+      }
+
+      ReactNoop.render(<Counter count={0} />);
+      expect(ReactNoop.flush()).toEqual(['Mount layout [current: 0]']);
+      expect(committedText).toEqual('0');
+
+      ReactNoop.render(<Counter count={1} />);
+      expect(ReactNoop.flush()).toEqual([
+        'Mount normal [current: 0]',
+        'Unmount layout [current: 0]',
+        'Mount layout [current: 1]',
+      ]);
+      expect(committedText).toEqual('1');
+
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Unmount normal [current: 1]', 'Mount normal [current: 1]']);
     });
   });
 
@@ -660,126 +1183,131 @@ describe('hooks', () => {
         increment = () => {
           this.props.increment();
         };
-
         render() {
           return <Text text="Increment" />;
         }
       }
 
-      const Counter = withHooks(({ incrementBy }) => {
+      function Counter({ incrementBy }) {
         const [count, updateCount] = useState(0);
         const increment = useCallback(() => updateCount(c => c + incrementBy), [incrementBy]);
         return (
-          <div>
+          <React.Fragment>
             <IncrementButton increment={increment} ref={button} />
             <Text text={'Count: ' + count} />
-          </div>
+          </React.Fragment>
         );
-      });
+      }
 
       const button = React.createRef(null);
-      const wrapper = mount(<Counter incrementBy={1} />);
-      expect(logger.flush()).toEqual(['Increment', 'Count: 0']);
+      ReactNoop.render(<Counter incrementBy={1} />);
+      expect(ReactNoop.flush()).toEqual(['Increment', 'Count: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('Increment'), span('Count: 0')]);
 
-      button.current.increment();
-      expect(logger.flush()).toEqual([
+      act(button.current.increment);
+      expect(ReactNoop.flush()).toEqual([
         // Button should not re-render, because its props haven't changed
         // 'Increment',
         'Count: 1',
       ]);
-      expect(wrapper.text()).toEqual('IncrementCount: 1');
+      expect(ReactNoop.getChildren()).toEqual([span('Increment'), span('Count: 1')]);
 
       // Increase the increment amount
-      wrapper.setProps({ incrementBy: 10 });
-      expect(logger.flush()).toEqual(['Increment', 'Count: 1']);
+      ReactNoop.render(<Counter incrementBy={10} />);
+      expect(ReactNoop.flush()).toEqual([
+        // Inputs did change this time
+        'Increment',
+        'Count: 1',
+      ]);
+      expect(ReactNoop.getChildren()).toEqual([span('Increment'), span('Count: 1')]);
 
       // Callback should have updated
-      button.current.increment();
-      expect(logger.flush()).toEqual(['Count: 11']);
-      expect(wrapper.text()).toEqual('IncrementCount: 11');
+      act(button.current.increment);
+      expect(ReactNoop.flush()).toEqual(['Count: 11']);
+      expect(ReactNoop.getChildren()).toEqual([span('Increment'), span('Count: 11')]);
     });
   });
 
   describe('useMemo', () => {
     it('memoizes value by comparing to previous inputs', () => {
-      const CapitalizedText = withHooks(props => {
+      function CapitalizedText(props) {
         const text = props.text;
         const capitalizedText = useMemo(() => {
-          logger.log(`Capitalize '${text}'`);
+          ReactNoop.yield(`Capitalize '${text}'`);
           return text.toUpperCase();
         }, [text]);
         return <Text text={capitalizedText} />;
-      });
+      }
 
-      const wrapper = mount(<CapitalizedText text="hello" />);
-      expect(logger.flush()).toEqual(["Capitalize 'hello'", 'HELLO']);
-      expect(wrapper.text()).toEqual('HELLO');
+      ReactNoop.render(<CapitalizedText text="hello" />);
+      expect(ReactNoop.flush()).toEqual(["Capitalize 'hello'", 'HELLO']);
+      expect(ReactNoop.getChildren()).toEqual([span('HELLO')]);
 
-      wrapper.setProps({ text: 'hi' });
-      expect(logger.flush()).toEqual(["Capitalize 'hi'", 'HI']);
-      expect(wrapper.text()).toEqual('HI');
+      ReactNoop.render(<CapitalizedText text="hi" />);
+      expect(ReactNoop.flush()).toEqual(["Capitalize 'hi'", 'HI']);
+      expect(ReactNoop.getChildren()).toEqual([span('HI')]);
 
-      wrapper.setProps({ text: 'hi' });
-      expect(logger.flush()).toEqual(['HI']);
-      expect(wrapper.text()).toEqual('HI');
+      ReactNoop.render(<CapitalizedText text="hi" />);
+      expect(ReactNoop.flush()).toEqual(['HI']);
+      expect(ReactNoop.getChildren()).toEqual([span('HI')]);
 
-      wrapper.setProps({ text: 'goodbye' });
-      expect(logger.flush()).toEqual(["Capitalize 'goodbye'", 'GOODBYE']);
-      expect(wrapper.text()).toEqual('GOODBYE');
+      ReactNoop.render(<CapitalizedText text="goodbye" />);
+      expect(ReactNoop.flush()).toEqual(["Capitalize 'goodbye'", 'GOODBYE']);
+      expect(ReactNoop.getChildren()).toEqual([span('GOODBYE')]);
     });
 
     it('always re-computes if no inputs are provided', () => {
-      const LazyCompute = withHooks(props => {
+      function LazyCompute(props) {
         const computed = useMemo(props.compute);
         return <Text text={computed} />;
-      });
+      }
 
       function computeA() {
-        logger.log('compute A');
+        ReactNoop.yield('compute A');
         return 'A';
       }
 
       function computeB() {
-        logger.log('compute B');
+        ReactNoop.yield('compute B');
         return 'B';
       }
 
-      const wrapper = mount(<LazyCompute compute={computeA} />);
-      expect(logger.flush()).toEqual(['compute A', 'A']);
+      ReactNoop.render(<LazyCompute compute={computeA} />);
+      expect(ReactNoop.flush()).toEqual(['compute A', 'A']);
 
-      wrapper.setProps({});
-      expect(logger.flush()).toEqual(['compute A', 'A']);
+      ReactNoop.render(<LazyCompute compute={computeA} />);
+      expect(ReactNoop.flush()).toEqual(['compute A', 'A']);
 
-      wrapper.setProps({});
-      expect(logger.flush()).toEqual(['compute A', 'A']);
+      ReactNoop.render(<LazyCompute compute={computeA} />);
+      expect(ReactNoop.flush()).toEqual(['compute A', 'A']);
 
-      wrapper.setProps({ compute: computeB });
-      expect(logger.flush()).toEqual(['compute B', 'B']);
+      ReactNoop.render(<LazyCompute compute={computeB} />);
+      expect(ReactNoop.flush()).toEqual(['compute B', 'B']);
     });
 
     it('should not invoke memoized function during re-renders unless inputs change', () => {
-      const LazyCompute = withHooks(props => {
+      function LazyCompute(props) {
         const computed = useMemo(() => props.compute(props.input), [props.input]);
         const [count, setCount] = useState(0);
         if (count < 3) {
           setCount(count + 1);
         }
         return <Text text={computed} />;
-      });
+      }
 
       function compute(val) {
-        logger.log('compute ' + val);
+        ReactNoop.yield('compute ' + val);
         return val;
       }
 
-      const wrapper = mount(<LazyCompute compute={compute} input="A" />);
-      expect(logger.flush()).toEqual(['compute A', 'A']);
+      ReactNoop.render(<LazyCompute compute={compute} input="A" />);
+      expect(ReactNoop.flush()).toEqual(['compute A', 'A']);
 
-      wrapper.setProps({});
-      expect(logger.flush()).toEqual(['A']);
+      ReactNoop.render(<LazyCompute compute={compute} input="A" />);
+      expect(ReactNoop.flush()).toEqual(['A']);
 
-      wrapper.setProps({ input: 'B' });
-      expect(logger.flush()).toEqual(['compute B', 'B']);
+      ReactNoop.render(<LazyCompute compute={compute} input="B" />);
+      expect(ReactNoop.flush()).toEqual(['compute B', 'B']);
     });
   });
 
@@ -789,7 +1317,7 @@ describe('hooks', () => {
 
       function useDebouncedCallback(callback, ms, inputs) {
         const timeoutID = useRef(-1);
-        useLayoutEffect(() => {
+        useEffect(() => {
           return function unmount() {
             clearTimeout(timeoutID.current);
           };
@@ -805,29 +1333,29 @@ describe('hooks', () => {
       }
 
       let ping;
-      const App = withHooks(() => {
+      function App() {
         ping = useDebouncedCallback(
           value => {
-            logger.log('ping: ' + value);
+            ReactNoop.yield('ping: ' + value);
           },
           100,
           [],
         );
         return null;
-      });
+      }
 
-      const wrapper = mount(<App />);
-      expect(logger.flush()).toEqual([]);
+      ReactNoop.render(<App />);
+      expect(ReactNoop.flush()).toEqual([]);
 
       ping(1);
       ping(2);
       ping(3);
 
-      expect(logger.flush()).toEqual([]);
+      expect(ReactNoop.flush()).toEqual([]);
 
       jest.advanceTimersByTime(100);
 
-      expect(logger.flush()).toEqual(['ping: 3']);
+      expect(ReactNoop.flush()).toEqual(['ping: 3']);
 
       ping(4);
       jest.advanceTimersByTime(20);
@@ -835,14 +1363,14 @@ describe('hooks', () => {
       ping(6);
       jest.advanceTimersByTime(80);
 
-      expect(logger.flush()).toEqual([]);
+      expect(ReactNoop.flush()).toEqual([]);
 
       jest.advanceTimersByTime(20);
-      expect(logger.flush()).toEqual(['ping: 6']);
+      expect(ReactNoop.flush()).toEqual(['ping: 6']);
     });
 
     it('should return the same ref during re-renders', () => {
-      const Counter = withHooks(() => {
+      function Counter() {
         const ref = useRef('val');
         const [count, setCount] = useState(0);
         const [firstRef] = useState(ref);
@@ -856,66 +1384,174 @@ describe('hooks', () => {
         }
 
         return <Text text={ref.current} />;
-      });
+      }
 
-      const wrapper = mount(<Counter />);
-      expect(logger.flush()).toEqual(['val']);
+      ReactNoop.render(<Counter />);
+      expect(ReactNoop.flush()).toEqual(['val']);
 
-      wrapper.setProps();
-      expect(logger.flush()).toEqual(['val']);
+      ReactNoop.render(<Counter />);
+      expect(ReactNoop.flush()).toEqual(['val']);
     });
   });
 
-  describe('progressive enhancement', () => {
-    it.skip('mount additional state', () => {
-      let updateA;
-      let updateB;
-      let updateC;
+  describe('useImperativeHandle', () => {
+    it('does not update when deps are the same', () => {
+      const INCREMENT = 'INCREMENT';
 
-      const App = withHooks(props => {
-        const [A, _updateA] = useState(0);
-        const [B, _updateB] = useState(0);
-        updateA = _updateA;
-        updateB = _updateB;
+      function reducer(state, action) {
+        return action === INCREMENT ? state + 1 : state;
+      }
 
-        let C;
-        if (props.loadC) {
-          const [_C, _updateC] = useState(0);
-          C = _C;
-          updateC = _updateC;
-        } else {
-          C = '[not loaded]';
-        }
-        console.log('B', B);
+      function Counter(props, ref) {
+        const [count, dispatch] = useReducer(reducer, 0);
+        useImperativeHandle(ref, () => ({ count, dispatch }), []);
+        return <Text text={'Count: ' + count} />;
+      }
 
-        return <Text text={`A: ${A}, B: ${B}, C: ${C}`} />;
+      Counter = forwardRef(Counter);
+      const counter = React.createRef(null);
+      ReactNoop.render(<Counter ref={counter} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      expect(counter.current.count).toBe(0);
+
+      act(() => {
+        counter.current.dispatch(INCREMENT);
       });
-
-      const wrapper = mount(<App loadC={false} />);
-      expect(logger.flush()).toEqual(['A: 0, B: 0, C: [not loaded]']);
-      expect(wrapper.text()).toEqual('A: 0, B: 0, C: [not loaded]');
-
-      updateA(2);
-      updateB(3);
-      console.log('UpdatedB');
-      // expect(logger.flush()).toEqual(['A: 2, B: 3, C: [not loaded]']);
-      expect(wrapper.text()).toEqual('A: 2, B: 3, C: [not loaded]');
-
-      wrapper.setProps({ loadC: true });
-      expect(logger.flush()).toEqual(['A: 2, B: 3, C: 0']);
-      expect(wrapper.text()).toEqual('A: 2, B: 3, C: 0');
-
-      updateC(4);
-      expect(logger.flush()).toEqual(['A: 2, B: 3, C: 4']);
-      expect(wrapper.text()).toEqual('A: 2, B: 3, C: 4');
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      // Intentionally not updated because of [] deps:
+      expect(counter.current.count).toBe(0);
     });
 
-    it.skip('unmount state', () => {
+    // Regression test for https://github.com/facebook/react/issues/14782
+    it.skip('automatically updates when deps are not specified', () => {
+      const INCREMENT = 'INCREMENT';
+
+      function reducer(state, action) {
+        return action === INCREMENT ? state + 1 : state;
+      }
+
+      function Counter(props, ref) {
+        const [count, dispatch] = useReducer(reducer, 0);
+        useImperativeHandle(ref, () => ({ count, dispatch }));
+        return <Text text={'Count: ' + count} />;
+      }
+
+      Counter = forwardRef(Counter);
+      const counter = React.createRef(null);
+      ReactNoop.render(<Counter ref={counter} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      expect(counter.current.count).toBe(0);
+
+      act(() => {
+        counter.current.dispatch(INCREMENT);
+      });
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      expect(counter.current.count).toBe(1);
+    });
+
+    it('updates when deps are different', () => {
+      const INCREMENT = 'INCREMENT';
+
+      function reducer(state, action) {
+        return action === INCREMENT ? state + 1 : state;
+      }
+
+      let totalRefUpdates = 0;
+      function Counter(props, ref) {
+        const [count, dispatch] = useReducer(reducer, 0);
+        useImperativeHandle(
+          ref,
+          () => {
+            totalRefUpdates++;
+            return { count, dispatch };
+          },
+          [count],
+        );
+        return <Text text={'Count: ' + count} />;
+      }
+
+      Counter = forwardRef(Counter);
+      const counter = React.createRef(null);
+      ReactNoop.render(<Counter ref={counter} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
+      expect(counter.current.count).toBe(0);
+      expect(totalRefUpdates).toBe(1);
+
+      act(() => {
+        counter.current.dispatch(INCREMENT);
+      });
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      expect(counter.current.count).toBe(1);
+      expect(totalRefUpdates).toBe(2);
+
+      // Update that doesn't change the ref dependencies
+      ReactNoop.render(<Counter ref={counter} />);
+      ReactNoop.flush();
+      expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
+      expect(counter.current.count).toBe(1);
+      expect(totalRefUpdates).toBe(2); // Should not increase since last time
+    });
+  });
+
+  describe('progressive enhancement (not supported)', () => {
+    it('mount additional state', () => {
+      let updateA;
+      let updateB;
+      // let updateC;
+
+      function App(props) {
+        const [A, _updateA] = useState(0);
+        const [B, _updateB] = useState(0);
+        updateA = _updateA;
+        updateB = _updateB;
+
+        let C;
+        if (props.loadC) {
+          useState(0);
+        } else {
+          C = '[not loaded]';
+        }
+
+        return <Text text={`A: ${A}, B: ${B}, C: ${C}`} />;
+      }
+
+      ReactNoop.render(<App loadC={false} />);
+      expect(ReactNoop.flush()).toEqual(['A: 0, B: 0, C: [not loaded]']);
+      expect(ReactNoop.getChildren()).toEqual([span('A: 0, B: 0, C: [not loaded]')]);
+
+      act(() => {
+        updateA(2);
+        updateB(3);
+      });
+
+      expect(ReactNoop.flush()).toEqual(['A: 2, B: 3, C: [not loaded]']);
+      expect(ReactNoop.getChildren()).toEqual([span('A: 2, B: 3, C: [not loaded]')]);
+
+      ReactNoop.render(<App loadC={true} />);
+      expect(() => {
+        expect(ReactNoop.flush()).toEqual(['A: 2, B: 3, C: 0']);
+      }).toThrow('Rendered more hooks than during the previous render');
+
+      // Uncomment if/when we support this again
+      // expect(ReactNoop.getChildren()).toEqual([span('A: 2, B: 3, C: 0')]);
+
+      // updateC(4);
+      // expect(ReactNoop.flush()).toEqual(['A: 2, B: 3, C: 4']);
+      // expect(ReactNoop.getChildren()).toEqual([span('A: 2, B: 3, C: 4')]);
+    });
+
+    it('unmount state', () => {
       let updateA;
       let updateB;
       let updateC;
 
-      const App = withHooks(props => {
+      function App(props) {
         const [A, _updateA] = useState(0);
         const [B, _updateB] = useState(0);
         updateA = _updateA;
@@ -931,66 +1567,75 @@ describe('hooks', () => {
         }
 
         return <Text text={`A: ${A}, B: ${B}, C: ${C}`} />;
+      }
+
+      ReactNoop.render(<App loadC={true} />);
+      expect(ReactNoop.flush()).toEqual(['A: 0, B: 0, C: 0']);
+      expect(ReactNoop.getChildren()).toEqual([span('A: 0, B: 0, C: 0')]);
+      act(() => {
+        updateA(2);
+        updateB(3);
+        updateC(4);
       });
-
-      const wrapper = mount(<App loadC={true} />);
-      expect(logger.flush()).toEqual(['A: 0, B: 0, C: 0']);
-      expect(wrapper.text()).toEqual('A: 0, B: 0, C: 0');
-
-      updateA(2);
-      updateB(3);
-      updateC(4);
-      expect(logger.flush()).toEqual(['A: 2, B: 3, C: 4']);
-      expect(wrapper.text()).toEqual('A: 2, B: 3, C: 4');
-      expect(() => {
-        wrapper.setProps({ loadC: false });
-      }).toThrow(
-        'Rendered fewer hooks than expected. This may be caused by an ' + 'accidental early return statement.',
-      );
+      expect(ReactNoop.flush()).toEqual(['A: 2, B: 3, C: 4']);
+      expect(ReactNoop.getChildren()).toEqual([span('A: 2, B: 3, C: 4')]);
+      // Skip
+      // ReactNoop.render(<App loadC={false} />);
+      // expect(() => ReactNoop.flush()).toThrow(
+      //   'Rendered fewer hooks than expected. This may be caused by an ' + 'accidental early return statement.',
+      // );
     });
 
     it.skip('unmount effects', () => {
-      const App = withHooks(props => {
-        useLayoutEffect(() => {
-          logger.log('Mount A');
+      function App(props) {
+        useEffect(() => {
+          ReactNoop.yield('Mount A');
           return () => {
-            logger.log('Unmount A');
+            ReactNoop.yield('Unmount A');
           };
         }, []);
 
         if (props.showMore) {
-          useLayoutEffect(() => {
-            logger.log('Mount B');
+          useEffect(() => {
+            ReactNoop.yield('Mount B');
             return () => {
-              logger.log('Unmount B');
+              ReactNoop.yield('Unmount B');
             };
           }, []);
         }
 
         return null;
-      });
+      }
 
-      const wrapper = mount(<App showMore={false} />);
-      expect(logger.flush()).toEqual(['Mount A']);
+      ReactNoop.render(<App showMore={false} />);
+      expect(ReactNoop.flush()).toEqual([]);
+      ReactNoop.flushPassiveEffects();
+      expect(ReactNoop.clearYields()).toEqual(['Mount A']);
 
-      wrapper.setProps({ showMore: true });
-      expect(logger.flush()).toEqual(['Mount B']);
-
+      ReactNoop.render(<App showMore={true} />);
       expect(() => {
-        wrapper.setProps({ showMore: false });
-      }).toThrow(
-        'Rendered fewer hooks than expected. This may be caused by an ' + 'accidental early return statement.',
-      );
+        expect(ReactNoop.flush()).toEqual([]);
+      }).toThrow('Rendered more hooks than during the previous render');
+
+      // Uncomment if/when we support this again
+      // ReactNoop.flushPassiveEffects();
+      // expect(ReactNoop.clearYields()).toEqual(['Mount B']);
+
+      // ReactNoop.render(<App showMore={false} />);
+      // expect(() => ReactNoop.flush()).toThrow(
+      //   'Rendered fewer hooks than expected. This may be caused by an ' +
+      //     'accidental early return statement.',
+      // );
     });
   });
 
   describe('useContext', () => {
     it('simple use', () => {
       const CounterContext = createContext();
-      const Counter = withHooks(() => {
+      const Counter = () => {
         const count = useContext(CounterContext);
-        return <div>{count}</div>;
-      });
+        return <Text text={count} />;
+      };
       class Blank extends React.PureComponent {
         render() {
           return this.props.children;
@@ -1005,25 +1650,25 @@ describe('hooks', () => {
           </CounterContext.Provider>
         );
       };
-      const wrapper = mount(<App count={0} />);
-      expect(wrapper.text()).toBe('0');
-      wrapper.setProps({ count: 1 });
-      expect(wrapper.text()).toBe('1');
+      ReactNoop.render(<App count={0} />);
+      expect(ReactNoop.flush()).toEqual([0]);
+      ReactNoop.render(<App count={1} />);
+      expect(ReactNoop.flush()).toEqual([1]);
     });
 
     it('works with shouldComponentUpdate', () => {
       const CounterContext = createContext(0);
-      const Counter = withHooks(() => {
+      const Counter = () => {
         const count = useContext(CounterContext);
-        return <div>{count}</div>;
-      });
+        return <Text text={count} />
+      };
       class Blank extends React.PureComponent {
         render() {
           return <Counter />;
         }
       }
       let updateCount;
-      const App = withHooks(() => {
+      const App = () => {
         const [count, _updateCount] = useState(0);
         updateCount = _updateCount;
         return (
@@ -1031,29 +1676,26 @@ describe('hooks', () => {
             <Blank />
           </CounterContext.Provider>
         );
-      });
-      const wrapper = mount(<App />);
-      expect(wrapper.text()).toBe('0');
+      };
+      ReactNoop.render(<App />);
+      expect(ReactNoop.flush()).toEqual([0]);
       updateCount(1);
-      expect(wrapper.text()).toBe('1');
+      expect(ReactNoop.flush()).toEqual([1]);
     });
 
     it('multiple contexts', () => {
       const CounterContext1 = createContext();
       const CounterContext2 = createContext();
-      const Counter = withHooks(() => {
+      const Counter = () => {
         const count1 = useContext(CounterContext1);
         const count2 = useContext(CounterContext2);
         return (
-          <div>
-            {count1}
-            {count2}
-          </div>
+          <Text text={`${count1}${count2}`} />
         );
-      });
+      };
       class Blank extends React.PureComponent {
         render() {
-          return <Counter />
+          return <Counter />;
         }
       }
       const App = props => {
@@ -1065,12 +1707,12 @@ describe('hooks', () => {
           </CounterContext1.Provider>
         );
       };
-      const wrapper = mount(<App count1={0} count2={0} />);
-      expect(wrapper.text()).toBe('00');
-      wrapper.setProps({ count1: 1 });
-      expect(wrapper.text()).toBe('10');
-      wrapper.setProps({ count2: 1 });
-      expect(wrapper.text()).toBe('11');
+      ReactNoop.render(<App count1={0} count2={0} />);
+      expect(ReactNoop.flush()).toEqual(['00']);
+      ReactNoop.render(<App count1={1} count2={0} />);
+      expect(ReactNoop.flush()).toEqual(['10']);
+      ReactNoop.render(<App count1={1} count2={1} />);
+      expect(ReactNoop.flush()).toEqual(['11']);
     });
   });
 });

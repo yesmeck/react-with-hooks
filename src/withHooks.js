@@ -12,6 +12,7 @@ import {
   UnmountLayout,
 } from './ReactHookEffectTags';
 import is from './objectIs';
+import scheduleCallback from './scheduleCallback';
 
 const RE_RENDER_LIMIT = 25;
 
@@ -537,29 +538,29 @@ function dispatchAction(instance, queue, action) {
     // The queue is currently empty, which means we can eagerly compute the
     // next state before entering the render phase. If the new state is the
     // same as the current state, we may be able to bail out entirely.
-    const eagerReducer = queue.eagerReducer;
-    if (eagerReducer !== null) {
-      let prevDispatcher;
-      try {
-        const currentState = queue.eagerState;
-        const eagerState = eagerReducer(currentState, action);
-        // Stash the eagerly computed state, and the reducer used to compute
-        // it, on the update object. If the reducer hasn't changed by the
-        // time we enter the render phase, then the eager state can be used
-        // without calling the reducer again.
-        update.eagerReducer = eagerReducer;
-        update.eagerState = eagerState;
-        if (is(eagerState, currentState)) {
-          // Fast path. We can bail out without scheduling React to re-render.
-          // It's still possible that we'll need to rebase this update later,
-          // if the component re-renders for a different reason and by that
-          // time the reducer has changed.
-          return;
-        }
-      } catch (error) {
-        // Suppress the error. It will throw again in the render phase.
-      }
-    }
+    // const eagerReducer = queue.eagerReducer;
+    // if (eagerReducer !== null) {
+    //   let prevDispatcher;
+    //   try {
+    //     const currentState = queue.eagerState;
+    //     const eagerState = eagerReducer(currentState, action);
+    //     // Stash the eagerly computed state, and the reducer used to compute
+    //     // it, on the update object. If the reducer hasn't changed by the
+    //     // time we enter the render phase, then the eager state can be used
+    //     // without calling the reducer again.
+    //     update.eagerReducer = eagerReducer;
+    //     update.eagerState = eagerState;
+    //     if (is(eagerState, currentState)) {
+    //       // Fast path. We can bail out without scheduling React to re-render.
+    //       // It's still possible that we'll need to rebase this update later,
+    //       // if the component re-renders for a different reason and by that
+    //       // time the reducer has changed.
+    //       return;
+    //     }
+    //   } catch (error) {
+    //     // Suppress the error. It will throw again in the render phase.
+    //   }
+    // }
 
     instance.setState({});
   }
@@ -592,20 +593,53 @@ const HooksDispatcherOnUpdate = {
 export default function withHooks(render) {
   class WithHooks extends React.Component {
     memoizedState = null;
+    cancelPassiveEffectCallback = null;
+    passiveEffectCallback = null;
 
     componentDidMount() {
+      // useLayoutEffect
       this.commitHookEffectList(UnmountMutation, MountMutation);
       this.commitHookEffectList(UnmountLayout, MountLayout);
+
+      // useEffect
+      this.passiveEffectCallback = this.commitPassiveEffects.bind(this);
+      this.cancelPassiveEffectCallback = scheduleCallback(this.passiveEffectCallback);
       this.mounted = true;
     }
 
     componentDidUpdate() {
+      // useLayoutEffect
       this.commitHookEffectList(UnmountMutation, MountMutation);
       this.commitHookEffectList(UnmountLayout, MountLayout);
+
+      // useEffect
+      this.passiveEffectCallback = this.commitPassiveEffects.bind(this);
+      this.cancelPassiveEffectCallback = scheduleCallback(this.passiveEffectCallback);
     }
 
     componentWillUnmount() {
       this.callDestroy();
+    }
+
+    commitPassiveEffects() {
+      this.passiveEffectCallback = null;
+      this.cancelPassiveEffectCallback = null;
+      this.commitPassiveHookEffects();
+    }
+
+    commitPassiveHookEffects() {
+      this.commitHookEffectList(UnmountPassive, NoHookEffect);
+      this.commitHookEffectList(NoHookEffect, MountPassive);
+    }
+
+    flushPassiveEffects() {
+      if (this.cancelPassiveEffectCallback !== null) {
+        this.cancelPassiveEffectCallback();
+      }
+
+      if (this.passiveEffectCallback !== null) {
+        this.passiveEffectCallback();
+      }
     }
 
     commitHookEffectList(unmountTag, mountTag) {
@@ -651,7 +685,7 @@ export default function withHooks(render) {
           do {
             var destroy = effect.destroy;
 
-            if (destroy !== null) {
+            if (destroy !== undefined) {
               destroy();
             }
 
@@ -680,6 +714,8 @@ export default function withHooks(render) {
     render() {
       resetHooks();
       prepareToUseHooks(this);
+
+      this.flushPassiveEffects();
 
       ReactCurrentDispatcher.current = nextCurrentHook === null ? HooksDispatcherOnMount : HooksDispatcherOnUpdate;
 
@@ -745,6 +781,7 @@ export default function withHooks(render) {
   }
   WithHooks.displayName = render.displayName || render.name;
   const wrap = (props, ref) => <WithHooks {...props} _forwardedRef={ref} />;
+  wrap.__react_with_hooks = true;
   wrap.displayName = `WithHooks(${WithHooks.displayName})`;
   return wrap;
 }

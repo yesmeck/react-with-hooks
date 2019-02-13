@@ -3,9 +3,9 @@
 [![Build Status](https://img.shields.io/travis/yesmeck/react-with-hooks.svg?style=flat-square)](https://travis-ci.org/yesmeck/react-with-hooks)
 ![codecov](https://img.shields.io/codecov/c/github/yesmeck/react-with-hooks.svg?style=flat-square)
 
-Ponyfill for the [proposed React Hooks API](https://reactjs.org/docs/hooks-intro.html).
+Polyfill and ponyfill for the [React Hooks API](https://reactjs.org/docs/hooks-intro.html).
 
-Works on RN!
+Works on React Native!
 
 ## Install
 
@@ -15,7 +15,30 @@ $ npm i react-with-hooks --save
 
 ## Example
 
+You can use `react-with-hooks` as a polyfill; in this case, when you later transition to native React Hooks you will only need to replace `'react-with-hooks/polyfill'` with `'react'` in your import statments:
+
 ```javascript
+import React, { useState, useEffect } from 'react-with-hooks/polyfill';
+
+const Counter = () => {
+  const [ count, setCount ] = useState(0);
+  useEffect(() => {
+    document.title = "count is " + count;
+  })
+  return (
+    <div>
+      {count}
+      <button onClick={() => setCount(count + 1)}>+</button>
+      <button onClick={() => setCount(count - 1)}>-</button>
+    </div>
+  );
+};
+```
+
+Alternatively, you can use this library as a ponyfill with the `withHooks` helper. In this case, you will have to refactor your code later when you transition to use native React Hooks.
+
+```javascript
+import React from 'react';
 import withHooks, { useState, useEffect } from 'react-with-hooks';
 
 const Counter = withHooks(() => {
