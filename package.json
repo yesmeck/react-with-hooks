@@ -24,7 +24,8 @@
   "scripts": {
     "test": "NODE_ENV=development jest",
     "build": "babel src -d lib",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "postinstall": "./scripts/alertFlag.sh"
   },
   "jest": {
     "setupFilesAfterEnv": [
