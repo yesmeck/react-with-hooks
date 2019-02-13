@@ -1,7 +1,10 @@
-const pendingWorks = [];
+let pendingWorks = [];
 
 const scheduleCallback = callback => {
   pendingWorks.push(callback);
+  return () => {
+    pendingWorks = pendingWorks.filter(cb => cb === callback);
+  };
 };
 
 scheduleCallback.flush = () => {

@@ -1,3 +1,6 @@
 export default function scheduleCallback(callback) {
-  requestAnimationFrame(callback);
+  const timer = requestAnimationFrame(callback);
+  return () => {
+    cancelAnimationFrame(timer);
+  };
 }

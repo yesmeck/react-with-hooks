@@ -593,18 +593,17 @@ const HooksDispatcherOnUpdate = {
 export default function withHooks(render) {
   class WithHooks extends React.Component {
     memoizedState = null;
+    cancelPassiveEffectCallback = null;
+    passiveEffectCallback = null;
 
     componentDidMount() {
       // useLayoutEffect
       this.commitHookEffectList(UnmountMutation, MountMutation);
       this.commitHookEffectList(UnmountLayout, MountLayout);
 
-
       // useEffect
-      scheduleCallback(() => {
-        this.commitHookEffectList(UnmountPassive, NoHookEffect);
-        this.commitHookEffectList(NoHookEffect, MountPassive);
-      });
+      this.passiveEffectCallback = this.commitPassiveEffects.bind(this);
+      this.cancelPassiveEffectCallback = scheduleCallback(this.passiveEffectCallback);
       this.mounted = true;
     }
 
@@ -614,14 +613,33 @@ export default function withHooks(render) {
       this.commitHookEffectList(UnmountLayout, MountLayout);
 
       // useEffect
-      scheduleCallback(() => {
-        this.commitHookEffectList(UnmountPassive, NoHookEffect);
-        this.commitHookEffectList(NoHookEffect, MountPassive);
-      });
+      this.passiveEffectCallback = this.commitPassiveEffects.bind(this);
+      this.cancelPassiveEffectCallback = scheduleCallback(this.passiveEffectCallback);
     }
 
     componentWillUnmount() {
       this.callDestroy();
+    }
+
+    commitPassiveEffects() {
+      this.passiveEffectCallback = null;
+      this.cancelPassiveEffectCallback = null;
+      this.commitPassiveHookEffects();
+    }
+
+    commitPassiveHookEffects() {
+      this.commitHookEffectList(UnmountPassive, NoHookEffect);
+      this.commitHookEffectList(NoHookEffect, MountPassive);
+    }
+
+    flushPassiveEffects() {
+      if (this.cancelPassiveEffectCallback !== null) {
+        this.cancelPassiveEffectCallback();
+      }
+
+      if (this.passiveEffectCallback !== null) {
+        this.passiveEffectCallback();
+      }
     }
 
     commitHookEffectList(unmountTag, mountTag) {
@@ -696,6 +714,8 @@ export default function withHooks(render) {
     render() {
       resetHooks();
       prepareToUseHooks(this);
+
+      this.flushPassiveEffects();
 
       ReactCurrentDispatcher.current = nextCurrentHook === null ? HooksDispatcherOnMount : HooksDispatcherOnUpdate;
 

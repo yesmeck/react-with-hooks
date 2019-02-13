@@ -476,7 +476,7 @@ describe('hooks', () => {
     });
   });
 
-  describe.skip('useEffect', () => {
+  describe('useEffect', () => {
     it('simple mount and update', () => {
       function Counter(props) {
         useEffect(() => {
@@ -527,10 +527,9 @@ describe('hooks', () => {
       expect(ReactNoop.clearYields()).toEqual(null);
     });
 
-    it('flushes passive effects even if siblings schedule an update', () => {
+    it.skip('flushes passive effects even if siblings schedule an update', () => {
       function PassiveEffect(props) {
         useEffect(() => {
-          debugger;
           ReactNoop.yield('Passive effect');
         });
         return <Text text="Passive" />;
@@ -542,7 +541,6 @@ describe('hooks', () => {
           if (count === 0) {
             setCount(1);
           }
-          debugger;
           ReactNoop.yield('Layout effect ' + count);
         });
         return <Text text="Layout" />;
@@ -564,7 +562,7 @@ describe('hooks', () => {
       expect(ReactNoop.getChildren()).toEqual([span('Passive'), span('Layout')]);
     });
 
-    it('flushes passive effects even if siblings schedule a new root', () => {
+    it.skip('flushes passive effects even if siblings schedule a new root', () => {
       function PassiveEffect(props) {
         useEffect(() => {
           ReactNoop.yield('Passive effect');
@@ -643,7 +641,7 @@ describe('hooks', () => {
       expect(ReactNoop.flush()).toEqual(['Count: 1']);
     });
 
-    it('updates have async priority even if effects are flushed early', () => {
+    it.skip('updates have async priority even if effects are flushed early', () => {
       function Counter(props) {
         const [count, updateCount] = useState('(empty)');
         useEffect(() => {
@@ -672,7 +670,7 @@ describe('hooks', () => {
       expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
     });
 
-    it('flushes serial effects before enqueueing work', () => {
+    it.skip('flushes serial effects before enqueueing work', () => {
       let _updateCount;
       function Counter(props) {
         const [count, updateCount] = useState(0);
@@ -695,7 +693,7 @@ describe('hooks', () => {
       expect(ReactNoop.getChildren()).toEqual([span('Count: 2')]);
     });
 
-    it('flushes serial effects before enqueueing work (with tracing)', () => {
+    it.skip('flushes serial effects before enqueueing work (with tracing)', () => {
       const onInteractionScheduledWorkCompleted = jest.fn();
       const onWorkCanceled = jest.fn();
       SchedulerTracing.unstable_subscribe({
@@ -738,7 +736,7 @@ describe('hooks', () => {
       expect(onWorkCanceled).toHaveBeenCalledTimes(0);
     });
 
-    it('in sync mode, useEffect is deferred and updates finish synchronously ' + '(in a single batch)', () => {
+    it.skip('in sync mode, useEffect is deferred and updates finish synchronously ' + '(in a single batch)', () => {
       function Counter(props) {
         const [count, updateCount] = useState('(empty)');
         useEffect(() => {
@@ -765,7 +763,7 @@ describe('hooks', () => {
       expect(ReactNoop.getChildren()).toEqual([span('Count: 0')]);
     });
 
-    it('flushSync is not allowed', () => {
+    it.skip('flushSync is not allowed', () => {
       function Counter(props) {
         const [count, updateCount] = useState('(empty)');
         useEffect(() => {
@@ -975,7 +973,7 @@ describe('hooks', () => {
       expect(ReactNoop.clearYields()).toEqual(['Unmount A [0]', 'Unmount B [0]', 'Mount A [1]', 'Mount B [1]']);
     });
 
-    it('handles errors on mount', () => {
+    it.skip('handles errors on mount', () => {
       function Counter(props) {
         useEffect(() => {
           ReactNoop.yield(`Mount A [${props.count}]`);
@@ -1008,7 +1006,7 @@ describe('hooks', () => {
       expect(ReactNoop.getChildren()).toEqual([]);
     });
 
-    it('handles errors on update', () => {
+    it.skip('handles errors on update', () => {
       function Counter(props) {
         useEffect(() => {
           ReactNoop.yield(`Mount A [${props.count}]`);
@@ -1051,7 +1049,7 @@ describe('hooks', () => {
       expect(ReactNoop.getChildren()).toEqual([]);
     });
 
-    it('handles errors on unmount', () => {
+    it.skip('handles errors on unmount', () => {
       function Counter(props) {
         useEffect(() => {
           ReactNoop.yield(`Mount A [${props.count}]`);
