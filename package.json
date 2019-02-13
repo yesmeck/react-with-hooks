@@ -46,8 +46,8 @@
     "chalk": "^2.4.2",
     "jest": "^24.0.0",
     "jest-diff": "^24.0.0",
-    "react": "^16.6.0",
-    "react-dom": "^16.6.0",
+    "react": "16.6.0",
+    "react-dom": "16.6.0",
     "react-reconciler": "^0.19.1",
     "regenerator-runtime": "^0.12.1"
   },
