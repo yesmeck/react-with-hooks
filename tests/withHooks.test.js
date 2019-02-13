@@ -1,9 +1,9 @@
-import scheduleCallback from '../src/scheduleCallback';
 
 jest.mock('../src/scheduleCallback');
 
 let React;
 let ReactNoop;
+let scheduleCallback;
 let useState;
 let useReducer;
 let useEffect;
@@ -34,13 +34,7 @@ describe('hooks', () => {
     require('../src/polyfill');
     React = require('react');
     ReactNoop = require('../vendors/react-noop-renderer');
-    const nativeFlush = ReactNoop.flush;
-    ReactNoop.flush = () => {
-      const values = nativeFlush();
-      scheduleCallback.flush();
-      return values;
-    };
-
+    scheduleCallback = require('../src/scheduleCallback').default;
     const nativeFlushPassiveEffects = ReactNoop.flushPassiveEffects;
     ReactNoop.flushPassiveEffects = () => {
       scheduleCallback.flush();
@@ -283,7 +277,7 @@ describe('hooks', () => {
       );
     });
 
-    it.skip('works with useReducer', () => {
+    it('works with useReducer', () => {
       function reducer(state, action) {
         return action === 'increment' ? state + 1 : state;
       }
@@ -301,7 +295,7 @@ describe('hooks', () => {
       expect(ReactNoop.getChildren()).toEqual([span(3)]);
     });
 
-    it.skip('uses reducer passed at time of render, not time of dispatch', () => {
+    it('uses reducer passed at time of render, not time of dispatch', () => {
       // This test is a bit contrived but it demonstrates a subtle edge case.
 
       // Reducer A increments by 1. Reducer B increments by 10.
@@ -361,7 +355,7 @@ describe('hooks', () => {
     });
   });
 
-  describe.skip('useReducer', () => {
+  describe('useReducer', () => {
     it('simple mount and update', () => {
       const INCREMENT = 'INCREMENT';
       const DECREMENT = 'DECREMENT';
@@ -392,7 +386,6 @@ describe('hooks', () => {
       ReactNoop.flush();
       expect(ReactNoop.getChildren()).toEqual([span('Count: 1')]);
 
-      debugger
       act(() => {
         counter.current.dispatch(DECREMENT);
         counter.current.dispatch(DECREMENT);
@@ -447,7 +440,7 @@ describe('hooks', () => {
     });
 
     // Regression test for https://github.com/facebook/react/issues/14360
-    it('handles dispatches with mixed priorities', () => {
+    it.skip('handles dispatches with mixed priorities', () => {
       const INCREMENT = 'INCREMENT';
 
       function reducer(state, action) {
@@ -505,7 +498,7 @@ describe('hooks', () => {
       expect(ReactNoop.clearYields()).toEqual(['Did commit [1]']);
     });
 
-    it('flushes passive effects even with sibling deletions', () => {
+    it.skip('flushes passive effects even with sibling deletions', () => {
       function LayoutEffect(props) {
         useLayoutEffect(() => {
           ReactNoop.yield(`Layout effect`);

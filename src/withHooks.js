@@ -538,29 +538,29 @@ function dispatchAction(instance, queue, action) {
     // The queue is currently empty, which means we can eagerly compute the
     // next state before entering the render phase. If the new state is the
     // same as the current state, we may be able to bail out entirely.
-    const eagerReducer = queue.eagerReducer;
-    if (eagerReducer !== null) {
-      let prevDispatcher;
-      try {
-        const currentState = queue.eagerState;
-        const eagerState = eagerReducer(currentState, action);
-        // Stash the eagerly computed state, and the reducer used to compute
-        // it, on the update object. If the reducer hasn't changed by the
-        // time we enter the render phase, then the eager state can be used
-        // without calling the reducer again.
-        update.eagerReducer = eagerReducer;
-        update.eagerState = eagerState;
-        if (is(eagerState, currentState)) {
-          // Fast path. We can bail out without scheduling React to re-render.
-          // It's still possible that we'll need to rebase this update later,
-          // if the component re-renders for a different reason and by that
-          // time the reducer has changed.
-          return;
-        }
-      } catch (error) {
-        // Suppress the error. It will throw again in the render phase.
-      }
-    }
+    // const eagerReducer = queue.eagerReducer;
+    // if (eagerReducer !== null) {
+    //   let prevDispatcher;
+    //   try {
+    //     const currentState = queue.eagerState;
+    //     const eagerState = eagerReducer(currentState, action);
+    //     // Stash the eagerly computed state, and the reducer used to compute
+    //     // it, on the update object. If the reducer hasn't changed by the
+    //     // time we enter the render phase, then the eager state can be used
+    //     // without calling the reducer again.
+    //     update.eagerReducer = eagerReducer;
+    //     update.eagerState = eagerState;
+    //     if (is(eagerState, currentState)) {
+    //       // Fast path. We can bail out without scheduling React to re-render.
+    //       // It's still possible that we'll need to rebase this update later,
+    //       // if the component re-renders for a different reason and by that
+    //       // time the reducer has changed.
+    //       return;
+    //     }
+    //   } catch (error) {
+    //     // Suppress the error. It will throw again in the render phase.
+    //   }
+    // }
 
     instance.setState({});
   }
