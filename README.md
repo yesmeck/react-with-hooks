@@ -13,7 +13,7 @@ Works on React Native!
 $ npm i react-with-hooks --save
 ```
 
-## Example
+## Usage
 
 You can use `react-with-hooks` as a polyfill; in this case, when you later transition to native React Hooks you will only need to remove the `import 'react-with-hooks/polyfill'` statement:
 
