@@ -7,6 +7,8 @@ Polyfill and ponyfill for the [React Hooks API](https://reactjs.org/docs/hooks-i
 
 Works on React Native!
 
+⚠️The code on master branch is still WIP.
+
 ## Install
 
 ```bash
