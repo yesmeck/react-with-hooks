@@ -31,6 +31,7 @@ let sideEffectTag = 0;
 let componentContext = null;
 let isRenderPhase = false;
 let didReceiveUpdate = false;
+let passiveHookEffects = [];
 
 function markWorkInProgressReceivedUpdate() {
   didReceiveUpdate = true;
@@ -487,6 +488,14 @@ function updateMemo(nextCreate, deps) {
   return nextValue;
 }
 
+function flushPassiveEffects() {
+  passiveHookEffects.forEach(effect => {
+    effect.cancel();
+    effect.callback();
+  });
+  passiveHookEffects = [];
+}
+
 function dispatchAction(instance, queue, action) {
   invariant(
     numberOfReRenders < RE_RENDER_LIMIT,
@@ -516,6 +525,8 @@ function dispatchAction(instance, queue, action) {
       lastRenderPhaseUpdate.next = update;
     }
   } else {
+    flushPassiveEffects();
+
     const update = {
       action,
       next: null,
@@ -593,8 +604,7 @@ const HooksDispatcherOnUpdate = {
 export default function withHooks(render) {
   class WithHooks extends React.Component {
     memoizedState = null;
-    cancelPassiveEffectCallback = null;
-    passiveEffectCallback = null;
+    passiveHookEffect = null;
 
     componentDidMount() {
       // useLayoutEffect
@@ -602,8 +612,7 @@ export default function withHooks(render) {
       this.commitHookEffectList(UnmountLayout, MountLayout);
 
       // useEffect
-      this.passiveEffectCallback = this.commitPassiveEffects.bind(this);
-      this.cancelPassiveEffectCallback = scheduleCallback(this.passiveEffectCallback);
+      this.createPassiveHookEffect();
       this.mounted = true;
     }
 
@@ -613,33 +622,31 @@ export default function withHooks(render) {
       this.commitHookEffectList(UnmountLayout, MountLayout);
 
       // useEffect
-      this.passiveEffectCallback = this.commitPassiveEffects.bind(this);
-      this.cancelPassiveEffectCallback = scheduleCallback(this.passiveEffectCallback);
+      this.createPassiveHookEffect();
     }
 
     componentWillUnmount() {
       this.callDestroy();
     }
 
-    commitPassiveEffects() {
-      this.passiveEffectCallback = null;
-      this.cancelPassiveEffectCallback = null;
-      this.commitPassiveHookEffects();
+    createPassiveHookEffect() {
+      const callback = this.commitPassiveHookEffects.bind(this);
+      const cancel = scheduleCallback(callback);
+      this.passiveHookEffect = {
+        callback,
+        cancel,
+      };
+      passiveHookEffects.push(this.passiveHookEffect);
     }
 
     commitPassiveHookEffects() {
+      if (this.passiveHookEffect === null) {
+        return;
+      }
       this.commitHookEffectList(UnmountPassive, NoHookEffect);
       this.commitHookEffectList(NoHookEffect, MountPassive);
-    }
-
-    flushPassiveEffects() {
-      if (this.cancelPassiveEffectCallback !== null) {
-        this.cancelPassiveEffectCallback();
-      }
-
-      if (this.passiveEffectCallback !== null) {
-        this.passiveEffectCallback();
-      }
+      passiveHookEffects = passiveHookEffects.filter(effect => effect !== this.passiveHookEffect);
+      this.passiveHookEffect = null;
     }
 
     commitHookEffectList(unmountTag, mountTag) {
@@ -714,8 +721,6 @@ export default function withHooks(render) {
     render() {
       resetHooks();
       prepareToUseHooks(this);
-
-      this.flushPassiveEffects();
 
       ReactCurrentDispatcher.current = nextCurrentHook === null ? HooksDispatcherOnMount : HooksDispatcherOnUpdate;
 

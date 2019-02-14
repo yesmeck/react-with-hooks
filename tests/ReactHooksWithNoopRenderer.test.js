@@ -498,6 +498,7 @@ describe('hooks', () => {
       expect(ReactNoop.clearYields()).toEqual(['Did commit [1]']);
     });
 
+    // tested in react-dom
     it.skip('flushes passive effects even with sibling deletions', () => {
       function LayoutEffect(props) {
         useLayoutEffect(() => {

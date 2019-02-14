@@ -1,9 +1,9 @@
 import React from 'react';
 import * as ReactIs from 'react-is';
-import * as hooks from '.';
 import withHooks from './withHooks';
+import * as hooks from './ReactHooks';
 
-const useNative = !!React.useState;
+const useNative = __DEV__ ? false : !!React.useState;
 
 const nativeCreateElement = React.createElement;
 
@@ -46,6 +46,8 @@ const createElementWithHooks = (() => {
 
 React.createElement = useNative ? React.createElement : createElementWithHooks;
 
-Object.keys(hooks).forEach(hook => {
-  React[hook] = hooks[hook];
-});
+if (!useNative) {
+  Object.keys(hooks).forEach(hook => {
+    React[hook] = hooks[hook];
+  });
+}
