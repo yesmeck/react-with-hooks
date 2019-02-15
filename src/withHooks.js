@@ -643,10 +643,10 @@ export default function withHooks(render) {
       if (this.passiveHookEffect === null) {
         return;
       }
-      this.commitHookEffectList(UnmountPassive, NoHookEffect);
-      this.commitHookEffectList(NoHookEffect, MountPassive);
       passiveHookEffects = passiveHookEffects.filter(effect => effect !== this.passiveHookEffect);
       this.passiveHookEffect = null;
+      this.commitHookEffectList(UnmountPassive, NoHookEffect);
+      this.commitHookEffectList(NoHookEffect, MountPassive);
     }
 
     commitHookEffectList(unmountTag, mountTag) {
