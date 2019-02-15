@@ -13,11 +13,11 @@ function shouldConstruct(Component) {
 }
 
 function isSimpleFunctionComponent(type) {
-  return (
-    typeof type === 'function' &&
-    !shouldConstruct(type) &&
-    type.defaultProps === undefined
-  );
+  return typeof type === 'function' && !shouldConstruct(type) && type.defaultProps === undefined;
+}
+
+function hasHooks(fn) {
+  return /\buse[A-Z0-9]/g.test(fn.toString());
 }
 
 const createElementWithHooks = (() => {
@@ -28,17 +28,24 @@ const createElementWithHooks = (() => {
     }
     const element = nativeCreateElement(component, props, ...children);
     let wrappedComponent = component;
+    let render;
     if (ReactIs.isForwardRef(element)) {
-      wrappedComponent.render = withHooks(component.render);
+      render = component.render;
+      wrappedComponent.render = withHooks(render);
       componentMap.set(component, wrappedComponent);
     }
     if (ReactIs.isMemo(component)) {
-      wrappedComponent.type = withHooks(component.type);
+      render = component.type;
+      wrappedComponent.type = withHooks(render);
       componentMap.set(component, wrappedComponent);
     }
     if (isSimpleFunctionComponent(component) && component.__react_with_hooks !== true) {
-      wrappedComponent = withHooks(component);
+      render = component;
+      wrappedComponent = withHooks(render);
       componentMap.set(component, wrappedComponent);
+    }
+    if (!render || !hasHooks(render)) {
+      return element;
     }
     return nativeCreateElement(wrappedComponent, props, ...children);
   };
