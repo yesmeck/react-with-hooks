@@ -17,7 +17,7 @@ function isSimpleFunctionComponent(type) {
 }
 
 function hasHooks(fn) {
-  return /\buse[A-Z0-9]/g.test(fn.toString());
+  return /\buse[A-Z0-9]/.test(fn.toString());
 }
 
 const createElementWithHooks = (() => {
